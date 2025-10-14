@@ -69,7 +69,7 @@ function Dashboard({ navigate }){
 
   return (<>
     <TopNav right={<>
-      <button className="btn ghost" onClick={openHistoryNewTab}>ประวัติการสนทนา</button>
+      <button className="btn ghost" onClick={openHistoryNewTab}>history</button>
       <a className="btn" href="#/dashboard">หน้าแรก</a>
     </>} />
     <div className="container">
