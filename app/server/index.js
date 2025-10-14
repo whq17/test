@@ -8,19 +8,11 @@ import db, { migrate } from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const app = express();
-app.set('trust proxy', 1);
-// CORRECTED LINE: Added the Render URL to the default origins list
-const ORIGIN = ['http://localhost:5173', 'http://localhost:4000'];
-app.use(cors({ origin: (origin, cb)=>{
-  if (!origin) return cb(null, true);
-  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
-  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
-  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
-  return cb(new Error('Not allowed by CORS: ' + origin));
-}, credentials: true }));
-app.use(express.json());
-
+const ORIGIN = [
+    'http://localhost:5173', // Development Client URL
+    'http://localhost:4000', // Development Server URL (เผื่อไว้)
+    RENDER_URL // Production Client URL (ถ้ามี)
+].filter(Boolean); 
 migrate();
 
 // ✳️ NEW: ALTER TABLE เพื่อเพิ่มคอลัมน์สำหรับ Quiz Timer (ทำครั้งเดียวตอนเริ่มต้น)
