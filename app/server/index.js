@@ -10,7 +10,8 @@ import jwt from 'jsonwebtoken';
 
 const app = express();
 app.set('trust proxy', 1);
-const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173').split(',');
+// CORRECTED LINE: Added the Render URL to the default origins list
+const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173,https://smart-classroom-4g61.onrender.com').split(',');
 app.use(cors({ origin: (origin, cb)=>{
   if (!origin) return cb(null, true);
   if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
@@ -132,7 +133,7 @@ io.on('connection', (socket) => {
 
     const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(sess.id).c;
     const perUser = db.prepare(`
-      SELECT display_name, 
+      SELECT display_name,
              SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
              COUNT(*) as totalAnswered
       FROM responses
@@ -237,7 +238,7 @@ app.get('/api/history', authMiddleware, (req, res) => {
     const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(s.sessionId).c;
     const respondents = db.prepare('SELECT DISTINCT display_name FROM responses WHERE session_id = ?').all(s.sessionId).map(r => r.display_name || 'ไม่ทราบชื่อ');
     const correctByUser = db.prepare(`
-      SELECT display_name, 
+      SELECT display_name,
              SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
              COUNT(*) as totalAnswered
       FROM responses
