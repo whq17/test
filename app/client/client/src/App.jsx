@@ -24,7 +24,8 @@ export default function App(){
 function TopNav({right}){
   return (
     <div className="nav">
-      <div className="Smart-Classroom</div>
+      {/* ✳️ แก้ไข: เพิ่มเครื่องหมาย '>' เพื่อปิดแท็ก */}
+      <div className="Smart-Classroom">Smart-Classroom</div>
       <div className="actions">{right}</div>
     </div>
   );
