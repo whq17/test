@@ -37,7 +37,7 @@ function LogoutButton(){
 function TopNav({right}){
   return (
     <div className="nav">
-      <div className="brand">Rooms ✳︎ Minimal</div>
+      <div className="brand">Smart ClassRoom</div>
       <div className="actions">{right}<LogoutButton /></div>
     </div>
   );
@@ -446,7 +446,7 @@ function Auth({ navigate }){
   };
 
   return (<>
-    <div className="nav"><div className="brand">Rooms ✳︎ Minimal</div></div>
+    <div className="nav"><div className="brand">Smart ClassRoom</div></div>
     <div className="container" style={{maxWidth:480}}>
       <div className="card">
         <div className="title">เข้าสู่ระบบ / สมัครสมาชิก</div>
