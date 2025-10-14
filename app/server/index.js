@@ -8,51 +8,20 @@ import db, { migrate } from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// index.js (โค้ดที่แก้ไขและจัดลำดับใหม่)
-
-// 1. ประกาศตัวแปร ORIGIN ก่อนการใช้งาน CORS
-const ORIGIN = [
-    'http://localhost:5173', 
-    'http://localhost:4000',
-    'https://smart-classroom-4g61.onrender.com' // URL ของ Client ที่ Deploy บน Render
-];
-
-// 2. ประกาศตัวแปร app *ก่อน* การใช้งานใดๆ
-const app = express(); 
-
-// 3. เริ่มใช้งาน Middleware ของ Express
+const app = express();
 app.set('trust proxy', 1);
-
-// 4. กำหนดค่า CORS Middleware
-// ❌ ลบ app.use(cors) ตัวแรกที่คุณส่งมาออก เพราะมันซ้ำซ้อน
+// CORRECTED LINE: Added the Render URL to the default origins list
+const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173,https://smart-classroom-4g61.onrender.com').split(',');
 app.use(cors({ origin: (origin, cb)=>{
-    if (!origin) return cb(null, true);
-    if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
-    
-    // ตรวจสอบ subdomain ของ trycloudflare
-    if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
-    
-    // หากไม่ผ่านเงื่อนไขใดๆ จะเกิด Error: Not allowed by CORS
-    return cb(new Error('Not allowed by CORS: ' + origin)); 
+  if (!origin) return cb(null, true);
+  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
+  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
+  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
+  return cb(new Error('Not allowed by CORS: ' + origin));
 }, credentials: true }));
-
-// 5. Middleware อื่นๆ
 app.use(express.json());
 
-// 6. ฟังก์ชันและโค้ดเริ่มต้นอื่นๆ 
-migrate(); // เรียกฟังก์ชัน migrate
-// ... (โค้ด Socket.IO, server.listen, etc.)
-
-
-// ✳️ NEW: ALTER TABLE เพื่อเพิ่มคอลัมน์สำหรับ Quiz Timer (ทำครั้งเดียวตอนเริ่มต้น)
-try {
-  // หากคอลัมน์ยังไม่มีในฐานข้อมูล (ตามโค้ด App.jsx ที่ถูกแก้ไข) จะเพิ่มคอลัมน์เหล่านี้
-  db.prepare('ALTER TABLE quizzes ADD COLUMN duration_seconds INTEGER').run();
-  db.prepare('ALTER TABLE quizzes ADD COLUMN start_time INTEGER').run(); // ใช้เก็บ Unix timestamp เป็นมิลลิวินาที
-} catch (e) {
-  // หากคอลัมน์มีอยู่แล้ว จะเกิด error ซึ่งเป็นเรื่องปกติ ไม่ต้องทำอะไร
-  // console.warn('DB ALTER failed (columns likely exist):', e.message); 
-}
+migrate();
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: ORIGIN.includes('*') ? '*' : ORIGIN, credentials: true } });
@@ -73,13 +42,10 @@ function authMiddleware(req, res, next){
   }
 }
 
+
 // room and name tracking
 const roomsMap = new Map(); // roomId -> Set<socketId>
 const nameMap = new Map();  // socketId -> displayName
-
-// ✳️ NEW: Global state for active quiz timer management
-const activeQuizTimers = new Map(); // quizId -> timeoutId
-const QUIZ_TIMEOUT_MAP = new Map(); // quizId -> { roomId, correctIndex } // Data needed for time-up event
 
 const joinRoom = (roomId, sid) => { if (!roomsMap.has(roomId)) roomsMap.set(roomId, new Set()); roomsMap.get(roomId).add(sid); };
 const leaveRoom = (roomId, sid) => {
@@ -98,42 +64,17 @@ function ensureSession(roomId) {
   return id;
 }
 
-// ✳️ NEW: Function to end a quiz when time is up
-function endQuiz(quizId) {
-    const data = QUIZ_TIMEOUT_MAP.get(quizId);
-    if (!data) return;
-
-    const { roomId, correctIndex } = data;
-    
-    // Clear the timer and map entries
-    const timeoutId = activeQuizTimers.get(quizId);
-    if (timeoutId) clearTimeout(timeoutId);
-    activeQuizTimers.delete(quizId);
-    QUIZ_TIMEOUT_MAP.delete(quizId);
-
-    // ⛔️ Emit time-up event to the room (client จะนำไปแสดงเฉลยและหยุดนับถอยหลัง)
-    io.to(roomId).emit('quiz:time-up', { quizId, correctIndex });
-    console.log(`Quiz ${quizId} in room ${roomId} ended by timer.`);
-
-    // Note: การตอบคำถามหลังหมดเวลา (endQuiz ถูกเรียก) จะถูกละเลยใน quiz:answer
-}
-
-
 io.on('connection', (socket) => {
   let currentRoom = null;
   let displayName = 'Guest';
 
   socket.on('join', ({ roomId, name }) => {
     displayName = name || 'Guest';
-    socket.data.name = displayName; 
     nameMap.set(socket.id, displayName);
     currentRoom = roomId;
     socket.join(roomId);
     joinRoom(roomId, socket.id);
 
-    updateRoomParticipants(currentRoom);
-
-    
     const info = db.prepare('SELECT id, creator_name, creator_socket FROM rooms WHERE id = ?').get(roomId);
     if (!info) {
       db.prepare('INSERT INTO rooms (id, creator_name, creator_socket) VALUES (?, ?, ?)').run(roomId, null, null);
@@ -156,53 +97,20 @@ io.on('connection', (socket) => {
     io.to(currentRoom).emit('chat', { id: socket.id, name: displayName, msg: text, ts: Date.now() });
   });
 
-  // ✳️ MODIFIED: quiz:create event to handle duration
-  socket.on('quiz:create', ({ roomId, question, options, correctIndex, createdBy, durationSeconds }) => {
+  socket.on('quiz:create', ({ roomId, question, options, correctIndex, createdBy }) => {
     // enforce: only room owner can create quizzes
     const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(roomId);
     const isOwner = room && room.creator_socket === socket.id;
     if (!isOwner) { socket.emit('quiz:denied', { reason: 'ONLY_OWNER' }); return; }
     if (!roomId || !question || !Array.isArray(options)) return;
-    
-    // ✳️ Enforce only one quiz at a time globally for simplicity
-    if (activeQuizTimers.size > 0) {
-        socket.emit('quiz:denied', { reason: 'ANOTHER_QUIZ_ACTIVE' });
-        return;
-    }
-
-    const duration = Number(durationSeconds) > 0 ? Number(durationSeconds) : 60; // 60 วินาทีเป็นค่า default
-    const startTime = Date.now();
-    
     const sessionId = ensureSession(roomId);
     const id = uuidv4();
-    
-    // ✳️ Updated DB INSERT statement to include duration_seconds and start_time
-    db.prepare('INSERT INTO quizzes (id, room_id, session_id, question, options, correct_index, created_by, duration_seconds, start_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, roomId, sessionId, question, JSON.stringify(options), Number.isInteger(correctIndex) ? correctIndex : null, createdBy || null, duration, startTime);
-
-    // ✳️ Updated emit for client
-    io.to(roomId).emit('quiz:new', { 
-        id, 
-        question, 
-        options, 
-        correctIndex: Number.isInteger(correctIndex) ? correctIndex : null,
-        startTime, // ✳️ NEW: Quiz start time (ms)
-        durationSeconds: duration // ✳️ NEW: Quiz duration (s)
-    });
-    
-    // ✳️ Set server-side timer to call endQuiz function
-    const timeoutId = setTimeout(() => endQuiz(id), duration * 1000);
-    activeQuizTimers.set(id, timeoutId);
-    QUIZ_TIMEOUT_MAP.set(id, { roomId, correctIndex }); // เก็บข้อมูลที่จำเป็นในการยุติ
+    db.prepare('INSERT INTO quizzes (id, room_id, session_id, question, options, correct_index, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, roomId, sessionId, question, JSON.stringify(options), Number.isInteger(correctIndex) ? correctIndex : null, createdBy || null);
+    io.to(roomId).emit('quiz:new', { id, question, options, correctIndex });
   });
 
-  // ✳️ MODIFIED: quiz:answer event to check if quiz is active
   socket.on('quiz:answer', ({ quizId, userId, displayName: dname, answerIndex }) => {
-    // ✳️ Ignore answers if the quiz timer has already expired
-    if (!activeQuizTimers.has(quizId)) {
-        return;
-    }
-    
     const quiz = db.prepare('SELECT * FROM quizzes WHERE id = ?').get(quizId);
     if (!quiz) return;
     const isCorrect = quiz.correct_index == null ? null : (Number(answerIndex) === Number(quiz.correct_index) ? 1 : 0);
@@ -222,16 +130,6 @@ io.on('connection', (socket) => {
     }
     const sess = db.prepare('SELECT id FROM sessions WHERE room_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(roomId);
     if (sess) db.prepare('UPDATE sessions SET ended_at = CURRENT_TIMESTAMP WHERE id = ?').run(sess.id);
-
-    // ✳️ NEW: Clear any active quiz timer when session ends
-    activeQuizTimers.forEach((timeoutId, quizId) => {
-        const data = QUIZ_TIMEOUT_MAP.get(quizId);
-        if (data && data.roomId === roomId) {
-            clearTimeout(timeoutId);
-            activeQuizTimers.delete(quizId);
-            QUIZ_TIMEOUT_MAP.delete(quizId);
-        }
-    });
 
     const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(sess.id).c;
     const perUser = db.prepare(`
@@ -267,7 +165,6 @@ io.on('connection', (socket) => {
     if (currentRoom) {
       leaveRoom(currentRoom, socket.id);
       socket.to(currentRoom).emit('peer-left', { id: socket.id });
-      updateRoomParticipants(currentRoom); // แก้ไขเป็น currentRoom
     }
   });
 });
@@ -375,14 +272,3 @@ try {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`Server ready on http://localhost:${PORT}`));
-
-function updateRoomParticipants(roomId) {
-    if (io.sockets.adapter.rooms.get(roomId)) {
-        const socketsInRoom = Array.from(io.sockets.adapter.rooms.get(roomId));
-        const participants = socketsInRoom.map(socketId => {
-            const socket = io.sockets.sockets.get(socketId);
-            return socket ? { id: socket.id, name: socket.data.name || 'Guest' } : null;
-        }).filter(Boolean);
-        io.to(roomId).emit('room-participants', participants);
-    }
-}
