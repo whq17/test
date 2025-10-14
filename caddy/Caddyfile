@@ -1,0 +1,22 @@
+{$CADDY_DOMAIN} {
+  encode gzip
+  tls {$CADDY_EMAIL}
+  @websocket {
+    header Connection *Upgrade*
+    header Upgrade    websocket
+  }
+  reverse_proxy /socket.io* app:4000 {
+    headers_up Host {host}
+    header_up Connection {header.Connection}
+    header_up Upgrade {header.Upgrade}
+    transport http {
+      versions h1 h2c
+    }
+  }
+  reverse_proxy app:4000
+}
+
+# Optional HTTP redirect
+:80 {
+  redir https://{$CADDY_DOMAIN}{uri}
+}
