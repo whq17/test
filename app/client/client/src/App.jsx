@@ -24,7 +24,7 @@ export default function App(){
 function TopNav({right}){
   return (
     <div className="nav">
-      <div className="brand">Rooms ✳︎ Minimal</div>
+      <div className="Smart-Classroom</div>
       <div className="actions">{right}</div>
     </div>
   );
