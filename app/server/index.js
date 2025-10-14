@@ -9,10 +9,19 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const ORIGIN = [
-    'http://localhost:5173', // Development Client URL
-    'http://localhost:4000', // Development Server URL (เผื่อไว้)
-    RENDER_URL // Production Client URL (ถ้ามี)
-].filter(Boolean); 
+    'http://localhost:5173', 
+    'http://localhost:4000',
+    'https://smart-classroom-4g61.onrender.com' // ✅ URL ที่ถูกปฏิเสธเมื่อกี้
+];
+
+app.use(cors({ origin: (origin, cb)=>{
+  if (!origin) return cb(null, true);
+  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
+  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
+  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
+  return cb(new Error('Not allowed by CORS: ' + origin)); // Error นี้จะหายไป
+}, credentials: true }));
+
 migrate();
 
 // ✳️ NEW: ALTER TABLE เพื่อเพิ่มคอลัมน์สำหรับ Quiz Timer (ทำครั้งเดียวตอนเริ่มต้น)
