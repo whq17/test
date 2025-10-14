@@ -8,34 +8,41 @@ import db, { migrate } from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const app = express(); // 👈 ต้องมีบรรทัดนี้ก่อน
+// index.js (โค้ดที่แก้ไขและจัดลำดับใหม่)
 
-// 3. เริ่มใช้งาน Middleware เช่น CORS, body parser
-app.set('trust proxy', 1);
-
-// บรรทัดที่ 17 ที่เกิด Error ในตอนนี้ จะสามารถทำงานได้แล้ว
-app.use(cors({ origin: (origin, cb)=>{
-// ... (CORS logic) ...
-}, credentials: true }));
-
-app.use(express.json());
-
-
+// 1. ประกาศตัวแปร ORIGIN ก่อนการใช้งาน CORS
 const ORIGIN = [
     'http://localhost:5173', 
     'http://localhost:4000',
-    'https://smart-classroom-4g61.onrender.com' // ✅ URL ที่ถูกปฏิเสธเมื่อกี้
+    'https://smart-classroom-4g61.onrender.com' // URL ของ Client ที่ Deploy บน Render
 ];
 
+// 2. ประกาศตัวแปร app *ก่อน* การใช้งานใดๆ
+const app = express(); 
+
+// 3. เริ่มใช้งาน Middleware ของ Express
+app.set('trust proxy', 1);
+
+// 4. กำหนดค่า CORS Middleware
+// ❌ ลบ app.use(cors) ตัวแรกที่คุณส่งมาออก เพราะมันซ้ำซ้อน
 app.use(cors({ origin: (origin, cb)=>{
-  if (!origin) return cb(null, true);
-  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
-  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
-  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
-  return cb(new Error('Not allowed by CORS: ' + origin)); // Error นี้จะหายไป
+    if (!origin) return cb(null, true);
+    if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
+    
+    // ตรวจสอบ subdomain ของ trycloudflare
+    if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
+    
+    // หากไม่ผ่านเงื่อนไขใดๆ จะเกิด Error: Not allowed by CORS
+    return cb(new Error('Not allowed by CORS: ' + origin)); 
 }, credentials: true }));
 
-migrate();
+// 5. Middleware อื่นๆ
+app.use(express.json());
+
+// 6. ฟังก์ชันและโค้ดเริ่มต้นอื่นๆ 
+migrate(); // เรียกฟังก์ชัน migrate
+// ... (โค้ด Socket.IO, server.listen, etc.)
+
 
 // ✳️ NEW: ALTER TABLE เพื่อเพิ่มคอลัมน์สำหรับ Quiz Timer (ทำครั้งเดียวตอนเริ่มต้น)
 try {
