@@ -37,7 +37,7 @@ function LogoutButton(){
 function TopNav({right}){
   return (
     <div className="nav">
-      <div className="brand">Smart ClassRoom</div>
+      <div className="brand">Smart ClassRoomasdadadadad</div>
       <div className="actions">{right}<LogoutButton /></div>
     </div>
   );
