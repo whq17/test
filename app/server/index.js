@@ -8,6 +8,19 @@ import db, { migrate } from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+const app = express(); // 👈 ต้องมีบรรทัดนี้ก่อน
+
+// 3. เริ่มใช้งาน Middleware เช่น CORS, body parser
+app.set('trust proxy', 1);
+
+// บรรทัดที่ 17 ที่เกิด Error ในตอนนี้ จะสามารถทำงานได้แล้ว
+app.use(cors({ origin: (origin, cb)=>{
+// ... (CORS logic) ...
+}, credentials: true }));
+
+app.use(express.json());
+
+
 const ORIGIN = [
     'http://localhost:5173', 
     'http://localhost:4000',
