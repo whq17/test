@@ -302,7 +302,7 @@ function Room({ navigate }){
             <button className="btn" onClick={()=>{
               const t = localStreamRef.current?.getAudioTracks?.()[0];
               if (t){ t.enabled = !t.enabled; }
-            }}>ปิดไมค์</button>
+            }}>ปิดไมค์naja</button>
             <button className="btn" onClick={()=>{
               const v = localStreamRef.current?.getVideoTracks?.()[0];
               if (v){ v.enabled = !v.enabled; }
