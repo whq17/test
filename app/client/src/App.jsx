@@ -129,6 +129,9 @@ function Room({ navigate }){
 
   const [peers, setPeers] = useState([]); // [{id,name}]
   const [peerNames, setPeerNames] = useState({}); // id->name
+
+   const [isSharingScreen, setIsSharingScreen] = useState(false); 
+
   const [messages, setMessages] = useState([]);
   const chatRef = useRef(null);
 
@@ -146,6 +149,61 @@ function Room({ navigate }){
   const localStreamRef = useRef(null);
   const pcMap = useRef(new Map());
   const myIdRef = useRef(uuidv4());
+
+  const toggleScreenShare = async () => {
+        if (isSharingScreen) {
+            // 🛑 1. STOP SHARING: สลับกลับไปใช้กล้อง/ไมค์เดิม
+            
+            // หยุด track หน้าจอปัจจุบัน (ซึ่งอยู่ใน localStreamRef)
+            localStreamRef.current?.getTracks().forEach(track => track.stop());
+
+            // ขอ stream กล้อง/ไมค์ใหม่
+            const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStreamRef.current = newStream;
+            videoRef.current.srcObject = newStream; // แสดงบน UI ของตัวเอง
+            
+            // แทนที่ track ใน PeerConnection
+            const videoSender = peerRef.current.getSenders().find(sender => sender.track.kind === 'video');
+            if (videoSender) {
+                videoSender.replaceTrack(newStream.getVideoTracks()[0]);
+            }
+
+            setIsSharingScreen(false);
+
+        } else {
+            // 🟢 2. START SHARING: เริ่มแชร์จอ
+            try {
+                // ขออนุญาตเข้าถึงหน้าจอ
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+
+                // 2.1. หยุด Stream เดิม (กล้อง/ไมค์)
+                localStreamRef.current?.getTracks().forEach(track => track.stop());
+                
+                // 2.2. กำหนด Stream ใหม่เป็น Stream หน้าจอ
+                localStreamRef.current = screenStream;
+                videoRef.current.srcObject = screenStream;
+
+                // 2.3. แทนที่ track ใน PeerConnection เพื่อส่งจอไปยัง Peer คนอื่น
+                const videoSender = peerRef.current.getSenders().find(sender => sender.track.kind === 'video');
+                if (videoSender) {
+                    videoSender.replaceTrack(screenStream.getVideoTracks()[0]);
+                }
+                
+                // 2.4. ตรวจสอบเมื่อผู้ใช้กดปุ่ม 'Stop Sharing' ของเบราว์เซอร์
+                screenStream.getVideoTracks()[0].onended = () => {
+                    // หากยังอยู่ในสถานะแชร์จอ ให้เรียก toggleScreenShare เพื่อสลับกลับ
+                    if (localStreamRef.current === screenStream) {
+                        toggleScreenShare(); 
+                    }
+                };
+
+                setIsSharingScreen(true);
+            } catch (error) {
+                console.error("Error starting screen sharing:", error);
+                alert("ไม่สามารถเริ่มแชร์หน้าจอได้");
+            }
+        }
+    };
 
   const setupMedia = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -302,11 +360,19 @@ function Room({ navigate }){
             <button className="btn" onClick={()=>{
               const t = localStreamRef.current?.getAudioTracks?.()[0];
               if (t){ t.enabled = !t.enabled; }
-            }}>ปิดไมค์naja</button>
+            }}>ปิดไมค์</button>
+
+             
+
             <button className="btn" onClick={()=>{
               const v = localStreamRef.current?.getVideoTracks?.()[0];
               if (v){ v.enabled = !v.enabled; }
             }}>ปิดกล้อง</button>
+
+            <button className="btn primary small" onClick={toggleScreenShare}>
+              {isSharingScreen ? 'หยุดแชร์จอ' : 'แชร์จอ'}
+            </button>
+            
             {isCreator && <button className="btn primary" onClick={()=> socketRef.current.emit('session:end', { roomId })}>จบการสนทนา</button>}
           </div>
         </div>
