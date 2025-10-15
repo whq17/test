@@ -11,21 +11,21 @@ import jwt from 'jsonwebtoken';
 const app = express();
 const server = http.createServer(app);
 
-// ✅ แก้ตรงนี้
+// ✅ กำหนด ORIGIN จาก environment หรือ fallback เป็น "*"
 const ORIGIN = process.env.ORIGIN || "*";
 
+// ✅ ประกาศ io เพียงครั้งเดียว
 const io = new Server(server, {
   cors: {
-    origin: ORIGIN.includes("*") ? "*" : ORIGIN,
+    origin: ORIGIN.includes('*') ? '*' : ORIGIN,
     credentials: true,
   },
 });
 
+// เริ่ม migration ของฐานข้อมูล
 migrate();
 
-
-const io = new Server(server, { cors: { origin: ORIGIN.includes('*') ? '*' : ORIGIN, credentials: true } });
-
+// ✅ ตั้งค่า JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret_change_me';
 
 function issueToken(user){ return jwt.sign({ uid: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' }); }
