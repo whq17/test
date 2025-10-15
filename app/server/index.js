@@ -9,23 +9,23 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const app = express();
-const server = http.createServer(app);
+app.set('trust proxy', 1);
+// CORRECTED LINE: Added the Render URL to the default origins list
+const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173,https://smart-classroom-4g61.onrender.com').split(',');
+app.use(cors({ origin: (origin, cb)=>{
+  if (!origin) return cb(null, true);
+  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
+  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
+  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
+  return cb(new Error('Not allowed by CORS: ' + origin));
+}, credentials: true }));
+app.use(express.json());
 
-// ✅ กำหนด ORIGIN จาก environment หรือ fallback เป็น "*"
-const ORIGIN = process.env.ORIGIN || "*";
-
-// ✅ ประกาศ io เพียงครั้งเดียว
-const io = new Server(server, {
-  cors: {
-    origin: ORIGIN.includes('*') ? '*' : ORIGIN,
-    credentials: true,
-  },
-});
-
-// เริ่ม migration ของฐานข้อมูล
 migrate();
 
-// ✅ ตั้งค่า JWT Secret
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: ORIGIN.includes('*') ? '*' : ORIGIN, credentials: true } });
+
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret_change_me';
 
 function issueToken(user){ return jwt.sign({ uid: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' }); }
