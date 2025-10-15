@@ -8,19 +8,33 @@ import db, { migrate } from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+
 const app = express();
 app.set('trust proxy', 1);
-// CORRECTED LINE: Added the Render URL to the default origins list
-const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173,https://smart-classroom-4g61.onrender.com').split(',');
-app.use(cors({ origin: (origin, cb)=>{
-  if (!origin) return cb(null, true);
-  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
-  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
-  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
-  return cb(new Error('Not allowed by CORS: ' + origin));
-}, credentials: true }));
+
+// ✅ ปรับโค้ดให้ robust รองรับทั้ง local และ production
+const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173,https://smart-classroom-4g61.onrender.com')
+  .split(',')
+  .map(o => o.trim());
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
+      // ✅ รองรับ subdomain ของ trycloudflare
+      if (ORIGIN.some(o => o.includes('trycloudflare') && origin.endsWith('trycloudflare.com')))
+        return cb(null, true);
+      console.error('CORS blocked:', origin);
+      return cb(new Error('Not allowed by CORS: ' + origin));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
+// ✅ ทำ migration หลังจากตั้งค่า middleware ทั้งหมดแล้ว
 migrate();
 
 const server = http.createServer(app);
