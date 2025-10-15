@@ -9,21 +9,17 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const app = express();
+const server = http.createServer(app);
 
-const allowedOrigins = ["http://localhost:3000"]; // ตัวอย่าง
+// ✅ แก้ตรงนี้
+const ORIGIN = process.env.ORIGIN || "*";
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS: " + origin));
-      }
-    },
-  })
-);
-
+const io = new Server(server, {
+  cors: {
+    origin: ORIGIN.includes("*") ? "*" : ORIGIN,
+    credentials: true,
+  },
+});
 
 migrate();
 
