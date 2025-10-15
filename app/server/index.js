@@ -68,22 +68,24 @@ io.on('connection', (socket) => {
   let currentRoom = null;
   let displayName = 'Guest';
 
-  socket.on('join', ({ roomId, name }) => {
-    displayName = name || 'Guest';
-    nameMap.set(socket.id, displayName);
-    currentRoom = roomId;
-    socket.join(roomId);
-    joinRoom(roomId, socket.id);
+socket.on('join', ({ roomId, name, creatorKey }) => {
+  displayName = name || 'Guest';
+  currentRoom = roomId;
+  nameMap.set(socket.id, displayName);
+  socket.join(roomId);
+  joinRoom(roomId, socket.id);
 
-    const info = db.prepare('SELECT id, creator_name, creator_socket FROM rooms WHERE id = ?').get(roomId);
-    if (!info) {
-      db.prepare('INSERT INTO rooms (id, creator_name, creator_socket) VALUES (?, ?, ?)').run(roomId, null, null);
-    } else {
-      if (info.creator_name && !info.creator_socket && info.creator_name === displayName) {
-        db.prepare('UPDATE rooms SET creator_socket = ? WHERE id = ?').run(socket.id, roomId);
-      }
+  const info = db.prepare('SELECT * FROM rooms WHERE id = ?').get(roomId);
+  if (!info) {
+    db.prepare('INSERT INTO rooms (id, creator_name, creator_socket) VALUES (?, ?, ?)').run(roomId, null, null);
+  } else {
+    // ✅ คืนสิทธิ์ผู้สร้างถ้า creator_socket ยังว่าง
+    if ((!info.creator_socket && info.creator_name === displayName) ||
+        (creatorKey && info.creator_key === creatorKey)) {
+      db.prepare('UPDATE rooms SET creator_socket = ? WHERE id = ?').run(socket.id, roomId);
     }
-    ensureSession(roomId);
+  }
+  ensureSession(roomId);
 
     const others = peersIn(roomId).filter(id => id !== socket.id).map(id => ({ id, name: nameMap.get(id) || 'Guest' }));
     socket.emit('peers', others);
@@ -131,42 +133,51 @@ io.on('connection', (socket) => {
     const sess = db.prepare('SELECT id FROM sessions WHERE room_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(roomId);
     if (sess) db.prepare('UPDATE sessions SET ended_at = CURRENT_TIMESTAMP WHERE id = ?').run(sess.id);
 
-    const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(sess.id).c;
-    const perUser = db.prepare(`
-      SELECT display_name,
-             SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
-             COUNT(*) as totalAnswered
-      FROM responses
-      WHERE session_id = ?
-      GROUP BY display_name
-      ORDER BY correctCount DESC, totalAnswered DESC
-    `).all(sess.id);
-    const respondents = db.prepare('SELECT DISTINCT display_name FROM responses WHERE session_id = ?').all(sess.id).map(r => r.display_name || 'ไม่ทราบชื่อ');
+const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(sess.id).c;
+const perUser = db.prepare(`
+  SELECT display_name,
+         SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
+         COUNT(*) as totalAnswered
+  FROM responses
+  WHERE session_id = ?
+  GROUP BY display_name
+  ORDER BY correctCount DESC, totalAnswered DESC
+`).all(sess.id);
 
-    const payload = {
-      roomId,
-      sessionId: sess?.id,
-      totalQuestions: Number(totalQuestions || 0),
-      respondentCount: respondents.length,
-      respondents,
-      correctByUser: perUser
-    };
+const respondents = db.prepare('SELECT DISTINCT display_name FROM responses WHERE session_id = ?').all(sess.id).map(r => r.display_name || 'ไม่ทราบชื่อ');
 
-    io.to(socket.id).emit('session:summary', payload);
-    io.to(roomId).emit('session:ended', { forceLeave: true, payload });
+const payload = {
+  roomId,
+  sessionId: sess?.id,
+  totalQuestions: Number(totalQuestions || 0),
+  respondentCount: respondents.length,
+  respondents,
+  correctByUser: perUser
+};
 
+io.to(socket.id).emit('session:summary', payload);
+io.to(roomId).emit('session:ended', { forceLeave: true, payload });
     setTimeout(() => {
       io.in(roomId).socketsLeave(roomId);
     }, 300);
   });
 
   socket.on('disconnect', () => {
-    nameMap.delete(socket.id);
-    if (currentRoom) {
-      leaveRoom(currentRoom, socket.id);
-      socket.to(currentRoom).emit('peer-left', { id: socket.id });
+  nameMap.delete(socket.id);
+  if (currentRoom) {
+    const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(currentRoom);
+    // ถ้าเป็นผู้สร้าง -> เคลียร์ socket เพื่อให้กลับมาเชื่อมใหม่ได้
+    if (room && room.creator_socket === socket.id) {
+      db.prepare('UPDATE rooms SET creator_socket = NULL WHERE id = ?').run(currentRoom);
     }
-  });
+    leaveRoom(currentRoom, socket.id);
+    socket.to(currentRoom).emit('peer-left', { id: socket.id });
+  }
+});
+
+
+
+
 });
 
 // AUTH: register/login
