@@ -50,6 +50,9 @@ function Dashboard({ navigate }){
   const [profileName, setProfileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random()*1000)));
   const [roomId, setRoomId] = useState('');
   const [createdRoomId, setCreatedRoomId] = useState('');
+  const [lastRoomId, setLastRoomId] = useState(localStorage.getItem('lastRoomId') || '');
+
+
 
   const createRoom = async () => {
     const res = await fetch(`${SERVER_URL}/api/room`, {
@@ -68,6 +71,9 @@ function Dashboard({ navigate }){
     } else {
       alert('สร้างห้องไม่สำเร็จ: ' + (data.error || res.statusText));
     }
+  localStorage.setItem('lastRoomId', data.roomId); // จดจำห้องล่าสุด
+  navigate(`#/room?roomId=${data.roomId}&creator=1`);
+
   };
 
   const joinRoom = () => {
@@ -111,8 +117,21 @@ function Dashboard({ navigate }){
           </label>
           <button className="btn" onClick={joinRoom}>เข้าร่วม</button>
         </div>
+
+        <div className="card">
+      <div className="title">ห้องของฉัน</div>
+      {lastRoomId ? (
+        <button className="btn" onClick={() => navigate(`#/room?roomId=${lastRoomId}&creator=1`)}>
+          เข้าห้องเดิม ({lastRoomId})
+        </button>
+      ) : (
+        <p className="muted">ยังไม่มีห้องที่สร้างไว้</p>
+      )}
+    </div>
+
       </div>
     </div>
+    
   </>);
 }
 
@@ -121,16 +140,20 @@ function useQuery(){
   return q;
 }
 
-function Room({ navigate }){
+function Room({ navigate }) {
   const q = useQuery();
   const roomId = q.get('roomId') || '';
   const isCreator = q.get('creator') === '1';
-  const [profileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random()*1000)));
+  const [profileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random() * 1000)));
 
-  const [peers, setPeers] = useState([]); // [{id,name}]
-  const [peerNames, setPeerNames] = useState({}); // id->name
+  const [peers, setPeers] = useState([]);
+  const [peerNames, setPeerNames] = useState({});
+  const [isSharingScreen, setIsSharingScreen] = useState(false);
+  const [lastRoomId, setLastRoomId] = useState(localStorage.getItem('lastRoomId') || '');
 
-   const [isSharingScreen, setIsSharingScreen] = useState(false); 
+
+ 
+
 
   const [messages, setMessages] = useState([]);
   const chatRef = useRef(null);
@@ -144,59 +167,47 @@ function Room({ navigate }){
 
   // media
   const localVideoRef = useRef(null);
-  const [remoteVideos, setRemoteVideos] = useState({}); // id->MediaStream
+  const [remoteVideos, setRemoteVideos] = useState({});
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
   const pcMap = useRef(new Map());
   const myIdRef = useRef(uuidv4());
 
   const toggleScreenShare = async () => {
-  try {
-    if (isSharingScreen) {
-      // ⛔️ หยุดแชร์จอ -> กลับมากล้อง/ไมค์
-      localStreamRef.current?.getVideoTracks?.().forEach(t => t.stop());
-
-      const cam = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = cam;
-      if (localVideoRef.current) localVideoRef.current.srcObject = cam;
-
-      // แทนที่ track บน PeerConnection ทุกตัว
-      for (const pc of pcMap.current.values()) {
-        const v = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (v) v.replaceTrack(cam.getVideoTracks()[0]);
-        const a = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-        if (a && cam.getAudioTracks()[0]) a.replaceTrack(cam.getAudioTracks()[0]);
+    try {
+      if (isSharingScreen) {
+        localStreamRef.current?.getVideoTracks?.().forEach(t => t.stop());
+        const cam = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStreamRef.current = cam;
+        if (localVideoRef.current) localVideoRef.current.srcObject = cam;
+        for (const pc of pcMap.current.values()) {
+          const v = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (v) v.replaceTrack(cam.getVideoTracks()[0]);
+          const a = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+          if (a && cam.getAudioTracks()[0]) a.replaceTrack(cam.getAudioTracks()[0]);
+        }
+        setIsSharingScreen(false);
+        return;
       }
 
-      setIsSharingScreen(false);
-      return;
+      const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const mic = localStreamRef.current?.getAudioTracks?.()[0] || null;
+      const combined = new MediaStream([screen.getVideoTracks()[0], ...(mic ? [mic] : [])]);
+      localStreamRef.current = combined;
+      if (localVideoRef.current) localVideoRef.current.srcObject = combined;
+      for (const pc of pcMap.current.values()) {
+        const v = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (v) v.replaceTrack(combined.getVideoTracks()[0]);
+      }
+      screen.getVideoTracks()[0].onended = () => {
+        if (isSharingScreen) toggleScreenShare();
+      };
+      setIsSharingScreen(true);
+    } catch (e) {
+      console.error('start/stop screenshare error:', e);
+      alert('ไม่สามารถเริ่มแชร์หน้าจอได้');
     }
-
-    // 🟢 เริ่มแชร์จอ (ขอเฉพาะวิดีโอจอ; ใช้ไมค์เดิม)
-    const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    const mic = localStreamRef.current?.getAudioTracks?.()[0] || null;
-    const combined = new MediaStream([screen.getVideoTracks()[0], ...(mic ? [mic] : [])]);
-
-    localStreamRef.current = combined;
-    if (localVideoRef.current) localVideoRef.current.srcObject = combined;
-
-    // ส่งภาพหน้าจอไปทุก peer
-    for (const pc of pcMap.current.values()) {
-      const v = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (v) v.replaceTrack(combined.getVideoTracks()[0]);
-    }
-
-    // ผู้ใช้กด Stop sharing ใน UI เบราว์เซอร์ -> สลับกลับอัตโนมัติ
-    screen.getVideoTracks()[0].onended = () => {
-      if (isSharingScreen) toggleScreenShare();
-    };
-
-    setIsSharingScreen(true);
-  } catch (e) {
-    console.error('start/stop screenshare error:', e);
-    alert('ไม่สามารถเริ่มแชร์หน้าจอได้');
-  }
-};
+  };
 
   const setupMedia = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -211,7 +222,9 @@ function Room({ navigate }){
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
     pc.ontrack = (e) => setRemoteVideos(prev => ({ ...prev, [peerId]: e.streams[0] }));
-    pc.onicecandidate = (e) => { if (e.candidate) socketRef.current.emit('signal', { to: peerId, data:{ type:'ice', candidate:e.candidate } }); };
+    pc.onicecandidate = (e) => {
+      if (e.candidate) socketRef.current.emit('signal', { to: peerId, data: { type: 'ice', candidate: e.candidate } });
+    };
     return pc;
   };
 
@@ -220,8 +233,9 @@ function Room({ navigate }){
     const existing = pcMap.current.get(peerId);
     const pc = existing || createPC(peerId);
     if (!existing) pcMap.current.set(peerId, pc);
-    const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-    socketRef.current.emit('signal', { to: peerId, data: { type:'sdp', sdp: pc.localDescription } });
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socketRef.current.emit('signal', { to: peerId, data: { type: 'sdp', sdp: pc.localDescription } });
   };
 
   const handleSignal = async ({ from, data }) => {
@@ -230,14 +244,18 @@ function Room({ navigate }){
     if (data.type === 'sdp') {
       if (data.sdp.type === 'offer') {
         await pc.setRemoteDescription(data.sdp);
-        if (!localStreamRef.current) { await setupMedia(); localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current)); }
-        const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
-        socketRef.current.emit('signal', { to: from, data: { type:'sdp', sdp: pc.localDescription } });
+        if (!localStreamRef.current) {
+          await setupMedia();
+          localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
+        }
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socketRef.current.emit('signal', { to: from, data: { type: 'sdp', sdp: pc.localDescription } });
       } else if (data.sdp.type === 'answer') {
         await pc.setRemoteDescription(data.sdp);
       }
     } else if (data.type === 'ice') {
-      try { await pc.addIceCandidate(data.candidate); } catch(e){ console.warn('ice error', e); }
+      try { await pc.addIceCandidate(data.candidate); } catch (e) { console.warn('ice error', e); }
     }
   };
 
@@ -248,7 +266,7 @@ function Room({ navigate }){
 
     socket.on('peers', async (others) => {
       setPeers(others);
-      setPeerNames(prev => ({ ...prev, ...Object.fromEntries(others.map(o=>[o.id, o.name||'Guest'])) }));
+      setPeerNames(prev => ({ ...prev, ...Object.fromEntries(others.map(o => [o.id, o.name || 'Guest'])) }));
       for (const p of others) await makeOffer(p.id);
     });
     socket.on('peer-joined', ({ id, name }) => {
@@ -257,49 +275,53 @@ function Room({ navigate }){
     });
     socket.on('peer-left', ({ id }) => {
       setPeers(prev => prev.filter(p => p.id !== id));
-      const pc = pcMap.current.get(id); if (pc) pc.close();
+      const pc = pcMap.current.get(id);
+      if (pc) pc.close();
       pcMap.current.delete(id);
-      setRemoteVideos(prev => { const x = { ...prev }; delete x[id]; return x; });
+      setRemoteVideos(prev => {
+        const x = { ...prev }; delete x[id]; return x;
+      });
     });
     socket.on('signal', handleSignal);
 
     socket.on('chat', (payload) => {
       setMessages(m => [...m, payload]);
-      setTimeout(()=> chatRef.current && (chatRef.current.scrollTop = chatRef.current.scrollHeight), 0);
+      setTimeout(() => chatRef.current && (chatRef.current.scrollTop = chatRef.current.scrollHeight), 0);
     });
 
     socket.on('quiz:new', (quiz) => { setLiveQuiz(quiz); setMyAnswer(null); });
     socket.on('quiz:denied', () => alert('สร้าง Quiz ไม่ได้: เฉพาะผู้สร้างห้องเท่านั้น'));
-    socket.on('quiz:answered', (r) => {});
 
     socket.on('session:summary', (payload) => {
-      alert(`สรุปผลส่งถึงผู้สร้าง\n${JSON.stringify(payload, null, 2)}`);
+      if (payload.correctByUser) setLeaderboard(payload.correctByUser);
     });
-    socket.on('session:end:denied', () => alert('ยุติห้องไม่ได้: ต้องเป็นผู้สร้างห้อง'));
 
-    socket.on('session:ended', ({ forceLeave, payload }) => {
+    socket.on('session:end:denied', () => alert('ยุติห้องไม่ได้: ต้องเป็นผู้สร้างห้อง'));
+    socket.on('session:ended', ({ payload }) => {
       alert(`ห้องนี้ถูกยุติแล้ว\n${JSON.stringify(payload, null, 2)}`);
       cleanupAndLeave();
-      // stay in same tab & keep token/profile in localStorage
+      localStorage.removeItem('lastRoomId');
       navigate('#/dashboard');
     });
 
     (async () => {
       await setupMedia();
-      socket.emit('join', { roomId, name: profileName });
+      const creatorKeys = JSON.parse(localStorage.getItem('creatorKeys') || '{}');
+      const creatorKey = creatorKeys[roomId] || null;
+      socket.emit('join', { roomId, name: profileName, creatorKey });
     })();
 
     return () => socket.disconnect();
   }, []);
 
   const cleanupAndLeave = () => {
-    try { localStreamRef.current?.getTracks()?.forEach(t => t.stop()); } catch {}
+    try { localStreamRef.current?.getTracks()?.forEach(t => t.stop()); } catch { }
     localStreamRef.current = null;
-    for (const [id, pc] of pcMap.current.entries()) { try { pc.close(); } catch {} }
+    for (const [id, pc] of pcMap.current.entries()) { try { pc.close(); } catch { } }
     pcMap.current.clear();
     setRemoteVideos({});
     setPeers([]);
-    try { socketRef.current?.disconnect(); } catch {}
+    try { socketRef.current?.disconnect(); } catch { }
   };
 
   const sendChat = (e) => {
@@ -311,117 +333,141 @@ function Room({ navigate }){
   };
 
   const createQuiz = () => {
-    if (!question || options.filter(o => o.trim()).length < 2) return alert('กรอกคำถามและตัวเลือกอย่างน้อย 2 ข้อ');
+    if (!question || options.filter(o => o.trim()).length < 2)
+      return alert('กรอกคำถามและตัวเลือกอย่างน้อย 2 ข้อ');
     socketRef.current.emit('quiz:create', { roomId, question, options, correctIndex, createdBy: profileName });
-    setQuestion(''); setOptions(['','','']); setCorrectIndex(null);
+    setQuestion('');
+    setOptions(['', '', '']);
+    setCorrectIndex(null);
   };
 
   const answerQuiz = (idx) => {
     if (!liveQuiz) return;
     setMyAnswer(idx);
-    socketRef.current.emit('quiz:answer', { quizId: liveQuiz.id, userId: myIdRef.current, displayName: profileName, answerIndex: idx });
+    socketRef.current.emit('quiz:answer', {
+      quizId: liveQuiz.id,
+      userId: myIdRef.current,
+      displayName: profileName,
+      answerIndex: idx
+    });
   };
 
   const endSession = () => {
     if (!isCreator) return alert('ต้องเป็นผู้สร้างห้องเท่านั้น');
     socketRef.current.emit('session:end', { roomId });
+    localStorage.removeItem('lastRoomId');
   };
 
-  return (<>
-    <TopNav right={<>
-      <a className="btn" href="#/dashboard">Dashboard</a>
-      <button className="btn ghost" onClick={()=>window.open('#/history','_blank')}>ประวัติ</button>
-    </>} />
-    <div className="container">
-      <div className="room-grid">
-        <div className="card" style={{gridColumn:'1 / 2'}}>
-          <div className="title">ห้อง: {roomId}</div>
-          <div className="row"><span className="pill">ฉัน: {profileName}{isCreator?' • ผู้สร้าง':''}</span></div>
+  return (
+    <>
+      <TopNav right={<>
+        <a className="btn" href="#/dashboard">Dashboard</a>
+        <button className="btn ghost" onClick={() => window.open('#/history', '_blank')}>ประวัติ</button>
+      </>} />
 
-          <div className="section-title">วิดีโอคอล</div>
-          <div className="videos">
-            <div className="video-wrap">
-              <video ref={localVideoRef} autoPlay playsInline muted></video>
-              <div className="name-tag">{profileName}</div>
-            </div>
-            {Object.entries(remoteVideos).map(([peerId, stream]) => (
-              <RemoteMedia key={peerId} stream={stream} name={peerNames[peerId] || peerId.slice(0,6)} speakersOn={true} />
-            ))}
-          </div>
+      <div className="container">
+        <div className="room-grid">
+          {/* 🎥 ฝั่งวิดีโอ */}
+          <div className="card" style={{ gridColumn: '1 / 2' }}>
+            <div className="title">ห้อง: {roomId}</div>
+            <div className="row"><span className="pill">ฉัน: {profileName}{isCreator ? ' • ผู้สร้าง' : ''}</span></div>
 
-          <div className="controls" style={{marginTop:10}}>
-            <button className="btn" onClick={()=>{
-              const t = localStreamRef.current?.getAudioTracks?.()[0];
-              if (t){ t.enabled = !t.enabled; }
-            }}>ปิดไมค์</button>
-
-             
-
-            <button className="btn" onClick={()=>{
-              const v = localStreamRef.current?.getVideoTracks?.()[0];
-              if (v){ v.enabled = !v.enabled; }
-            }}>ปิดกล้อง</button>
-
-            <button className="btn primary small" onClick={toggleScreenShare}>
-              {isSharingScreen ? 'หยุดแชร์จอ' : 'แชร์จอ'}
-            </button>
-            
-            {isCreator && <button className="btn primary" onClick={()=> socketRef.current.emit('session:end', { roomId })}>จบการสนทนา</button>}
-          </div>
-        </div>
-
-        <div className="card" style={{gridColumn:'2 / 3', position:'sticky', top:24, alignSelf:'start'}}>
-          <div className="title">แชท</div>
-          <div ref={chatRef} className="chatbox">
-            {messages.map((m, i) => (
-              <div key={i} className="chat-item"><strong>{m.name||'ไม่ทราบชื่อ'}</strong><span className="chat-time">{m.ts ? new Date(m.ts).toLocaleTimeString() : ''}</span>: {m.msg}</div>
-            ))}
-          </div>
-          <form onSubmit={sendChat} className="controls">
-            <input name="msg" placeholder="พิมพ์แชท..." style={{flex:1}} />
-            <button className="btn">ส่ง</button>
-          </form>
-
-          <div className="section-title">Quiz</div>
-          {isCreator ? (<>
-            <div className="row">
-              <input placeholder="คำถาม" value={question} onChange={e=>setQuestion(e.target.value)} style={{flex:1}}/>
-              <button className="btn" onClick={()=> setOptions([...options, ''])}>+ ตัวเลือก</button>
-            </div>
-            {options.map((opt, i) => (
-              <div key={i} className="row">
-                <input placeholder={'ตัวเลือก ' + (i+1)} value={opt} onChange={e=>{
-                  const next = [...options]; next[i] = e.target.value; setOptions(next);
-                }} style={{flex:1}}/>
-                <label className="row" style={{fontSize:12}}>
-                  <input type="radio" checked={correctIndex===i} onChange={()=>setCorrectIndex(i)} /> เฉลย
-                </label>
+            <div className="section-title">วิดีโอคอล</div>
+            <div className="videos">
+              <div className="video-wrap">
+                <video ref={localVideoRef} autoPlay playsInline muted></video>
+                <div className="name-tag">{profileName}</div>
               </div>
-            ))}
-            <div className="controls">
-              <button className="btn primary" onClick={createQuiz}>ส่ง Quiz</button>
+              {Object.entries(remoteVideos).map(([peerId, stream]) => (
+                <RemoteMedia key={peerId} stream={stream} name={peerNames[peerId] || peerId.slice(0, 6)} speakersOn={true} />
+              ))}
             </div>
-          </>) : (
-            <p className="muted">รอผู้สร้างห้องเริ่ม Quiz…</p>
-          )}
 
-          {liveQuiz && (
-            <div style={{marginTop:12}}>
-              <div className="title" style={{fontSize:16}}>คำถาม: {liveQuiz.question}</div>
-              <div className="grid" style={{gridTemplateColumns:'1fr 1fr'}}>
-                {liveQuiz.options.map((opt, i) => (
-                  <div key={i} className={'option ' + (myAnswer===i ? 'selected' : '')} onClick={()=>answerQuiz(i)}>
-                    {String.fromCharCode(65+i)}. {opt}
+            <div className="controls" style={{ marginTop: 10 }}>
+              <button className="btn" onClick={() => {
+                const t = localStreamRef.current?.getAudioTracks?.()[0];
+                if (t) { t.enabled = !t.enabled; }
+              }}>ปิดไมค์</button>
+
+              <button className="btn" onClick={() => {
+                const v = localStreamRef.current?.getVideoTracks?.()[0];
+                if (v) { v.enabled = !v.enabled; }
+              }}>ปิดกล้อง</button>
+
+              <button className="btn primary small" onClick={toggleScreenShare}>
+                {isSharingScreen ? 'หยุดแชร์จอ' : 'แชร์จอ'}
+              </button>
+
+              {isCreator && <button className="btn primary" onClick={endSession}>จบการสนทนา</button>}
+            </div>
+          </div>
+
+          {/* 💬 ฝั่งแชท + Quiz */}
+          <div className="card" style={{ gridColumn: '2 / 3', position: 'sticky', top: 24, alignSelf: 'start' }}>
+            <div className="title">แชท</div>
+            <div ref={chatRef} className="chatbox">
+              {messages.map((m, i) => (
+                <div key={i} className="chat-item"><strong>{m.name || 'ไม่ทราบชื่อ'}</strong>: {m.msg}</div>
+              ))}
+            </div>
+            <form onSubmit={sendChat} className="controls">
+              <input name="msg" placeholder="พิมพ์แชท..." style={{ flex: 1 }} />
+              <button className="btn">ส่ง</button>
+            </form>
+
+            <div className="section-title">Quiz</div>
+            {isCreator ? (
+              <>
+                <div className="row">
+                  <input placeholder="คำถาม" value={question} onChange={e => setQuestion(e.target.value)} style={{ flex: 1 }} />
+                  <button className="btn" onClick={() => setOptions([...options, ''])}>+ ตัวเลือก</button>
+                </div>
+                {options.map((opt, i) => (
+                  <div key={i} className="row">
+                    <input placeholder={'ตัวเลือก ' + (i + 1)} value={opt} onChange={e => {
+                      const next = [...options]; next[i] = e.target.value; setOptions(next);
+                    }} style={{ flex: 1 }} />
+                    <label className="row" style={{ fontSize: 12 }}>
+                      <input type="radio" checked={correctIndex === i} onChange={() => setCorrectIndex(i)} /> เฉลย
+                    </label>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
+                <div className="controls">
+                  <button className="btn primary" onClick={createQuiz}>ส่ง Quiz</button>
+                </div>
+              </>
+            ) : (
+              <p className="muted">รอผู้สร้างห้องเริ่ม Quiz…</p>
+            )}
+
+            {/* 🧩 Quiz ที่กำลังเล่น + ตารางคะแนน */}
+            {liveQuiz && (
+              <>
+                <div style={{ marginTop: 12 }}>
+                  <div className="title" style={{ fontSize: 16 }}>คำถาม: {liveQuiz.question}</div>
+                  <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                    {liveQuiz.options.map((opt, i) => (
+                      <div key={i} className={'option ' + (myAnswer === i ? 'selected' : '')}
+                        onClick={() => answerQuiz(i)}>
+                        {String.fromCharCode(65 + i)}. {opt}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  </>);
+    </>
+  );
 }
+
+
+
+
 
 function RemoteMedia({ stream, name, speakersOn }){
   const vref = useRef(null);
@@ -521,5 +567,7 @@ function Auth({ navigate }){
         </div>
       </div>
     </div>
+
+    
   </>);
 }
