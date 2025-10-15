@@ -9,17 +9,21 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const app = express();
-app.set('trust proxy', 1);
-// CORRECTED LINE: Added the Render URL to the default origins list
-const ORIGIN = (process.env.ORIGIN || 'http://localhost:5173,https://smart-classroom-4g61.onrender.com').split(',');
-app.use(cors({ origin: (origin, cb)=>{
-  if (!origin) return cb(null, true);
-  if (ORIGIN.includes('*') || ORIGIN.includes(origin)) return cb(null, true);
-  // allow trycloudflare subdomains if ORIGIN has 'trycloudflare'
-  if (ORIGIN.find(o=>o.includes('trycloudflare') && origin.endsWith('trycloudflare.com'))) return cb(null, true);
-  return cb(new Error('Not allowed by CORS: ' + origin));
-}, credentials: true }));
-app.use(express.json());
+
+const allowedOrigins = ["http://localhost:3000"]; // ตัวอย่าง
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS: " + origin));
+      }
+    },
+  })
+);
+
 
 migrate();
 
