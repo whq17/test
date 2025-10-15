@@ -23,7 +23,7 @@ const io = new Server(server, {
 
 migrate();
 
-const server = http.createServer(app);
+
 const io = new Server(server, { cors: { origin: ORIGIN.includes('*') ? '*' : ORIGIN, credentials: true } });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret_change_me';
