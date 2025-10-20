@@ -134,6 +134,22 @@ socket.on('join', ({ roomId, name, creatorKey }) => {
     db.prepare('INSERT INTO responses (id, quiz_id, session_id, user_id, display_name, answer_index, is_correct) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(id, quizId, quiz.session_id, userId, dname || null, answerIndex, isCorrect);
     io.to(quiz.room_id).emit('quiz:answered', { quizId, userId, displayName: dname, answerIndex, isCorrect });
+
+    const leaderboardRows = db.prepare(`
+      SELECT display_name,
+             SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
+             COUNT(*) as totalAnswered
+      FROM responses
+      WHERE session_id = ?
+      GROUP BY display_name
+      ORDER BY correctCount DESC, totalAnswered DESC, display_name
+    `).all(quiz.session_id);
+    const leaderboard = leaderboardRows.map(row => ({
+      displayName: row.display_name || 'ไม่ทราบชื่อ',
+      correctCount: Number(row.correctCount || 0),
+      totalAnswered: Number(row.totalAnswered || 0),
+    }));
+    io.to(quiz.room_id).emit('quiz:leaderboard', { sessionId: quiz.session_id, entries: leaderboard });
   });
 
   socket.on('session:end', async ({ roomId }) => {
@@ -147,33 +163,57 @@ socket.on('join', ({ roomId, name, creatorKey }) => {
     const sess = db.prepare('SELECT id FROM sessions WHERE room_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(roomId);
     if (sess) db.prepare('UPDATE sessions SET ended_at = CURRENT_TIMESTAMP WHERE id = ?').run(sess.id);
 
-const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(sess.id).c;
-const perUser = db.prepare(`
-  SELECT display_name,
-         SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
-         COUNT(*) as totalAnswered
-  FROM responses
-  WHERE session_id = ?
-  GROUP BY display_name
-  ORDER BY correctCount DESC, totalAnswered DESC
-`).all(sess.id);
+    const totalQuestions = db.prepare('SELECT COUNT(*) as c FROM quizzes WHERE session_id = ?').get(sess.id).c;
+    const perUser = db.prepare(`
+      SELECT display_name,
+             SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
+             COUNT(*) as totalAnswered
+      FROM responses
+      WHERE session_id = ?
+      GROUP BY display_name
+      ORDER BY correctCount DESC, totalAnswered DESC
+    `).all(sess.id);
 
-const respondents = db.prepare('SELECT DISTINCT display_name FROM responses WHERE session_id = ?').all(sess.id).map(r => r.display_name || 'ไม่ทราบชื่อ');
+    const respondents = db.prepare('SELECT DISTINCT display_name FROM responses WHERE session_id = ?').all(sess.id).map(r => r.display_name || 'ไม่ทราบชื่อ');
 
-const payload = {
-  roomId,
-  sessionId: sess?.id,
-  totalQuestions: Number(totalQuestions || 0),
-  respondentCount: respondents.length,
-  respondents,
-  correctByUser: perUser
-};
+    const payload = {
+      roomId,
+      sessionId: sess?.id,
+      totalQuestions: Number(totalQuestions || 0),
+      respondentCount: respondents.length,
+      respondents,
+      correctByUser: perUser
+    };
 
-io.to(socket.id).emit('session:summary', payload);
-io.to(roomId).emit('session:ended', { forceLeave: true, payload });
+    io.to(socket.id).emit('session:summary', payload);
+    io.to(roomId).emit('session:ended', { forceLeave: true, payload });
     setTimeout(() => {
       io.in(roomId).socketsLeave(roomId);
     }, 300);
+  });
+
+  socket.on('media:control', ({ targetId, action }) => {
+    if (!currentRoom || !targetId || !action) return;
+    const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(currentRoom);
+    const isOwner = room && room.creator_socket === socket.id;
+    if (!isOwner) {
+      socket.emit('media:control:denied', { reason: 'ONLY_OWNER' });
+      return;
+    }
+
+    if (!peersIn(currentRoom).includes(targetId)) return;
+
+    const lowerAction = String(action).toLowerCase();
+    io.to(targetId).emit('media:control', { action: lowerAction, by: socket.id });
+
+    let update = {};
+    if (lowerAction === 'mute-audio') update = { audioMuted: true };
+    else if (lowerAction === 'unmute-audio') update = { audioMuted: false };
+    else if (lowerAction === 'disable-video') update = { videoDisabled: true };
+    else if (lowerAction === 'enable-video') update = { videoDisabled: false };
+    if (Object.keys(update).length) {
+      io.to(currentRoom).emit('media:status', { targetId, update });
+    }
   });
 
   socket.on('disconnect', () => {
