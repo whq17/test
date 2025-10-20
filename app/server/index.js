@@ -118,22 +118,99 @@ socket.on('join', ({ roomId, name, creatorKey }) => {
     const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(roomId);
     const isOwner = room && room.creator_socket === socket.id;
     if (!isOwner) { socket.emit('quiz:denied', { reason: 'ONLY_OWNER' }); return; }
+    if (currentRoom !== roomId) return;
     if (!roomId || !question || !Array.isArray(options)) return;
     const sessionId = ensureSession(roomId);
     const id = uuidv4();
+    const parsedIndex = Number(correctIndex);
+    const normalizedIndex = Number.isInteger(parsedIndex) && parsedIndex >= 0 && parsedIndex < options.length
+      ? parsedIndex
+      : null;
     db.prepare('INSERT INTO quizzes (id, room_id, session_id, question, options, correct_index, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(id, roomId, sessionId, question, JSON.stringify(options), Number.isInteger(correctIndex) ? correctIndex : null, createdBy || null);
-    io.to(roomId).emit('quiz:new', { id, question, options, correctIndex });
+      .run(id, roomId, sessionId, question, JSON.stringify(options), normalizedIndex, createdBy || null);
+    io.to(roomId).emit('quiz:new', { id, question, options, correctIndex: normalizedIndex });
   });
 
   socket.on('quiz:answer', ({ quizId, userId, displayName: dname, answerIndex }) => {
     const quiz = db.prepare('SELECT * FROM quizzes WHERE id = ?').get(quizId);
     if (!quiz) return;
+    if (quiz.room_id !== currentRoom) return;
     const isCorrect = quiz.correct_index == null ? null : (Number(answerIndex) === Number(quiz.correct_index) ? 1 : 0);
     const id = uuidv4();
     db.prepare('INSERT INTO responses (id, quiz_id, session_id, user_id, display_name, answer_index, is_correct) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(id, quizId, quiz.session_id, userId, dname || null, answerIndex, isCorrect);
     io.to(quiz.room_id).emit('quiz:answered', { quizId, userId, displayName: dname, answerIndex, isCorrect });
+
+    const leaderboardRows = db.prepare(`
+      SELECT display_name,
+             SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correctCount,
+             COUNT(*) as totalAnswered
+      FROM responses
+      WHERE session_id = ?
+      GROUP BY display_name
+      ORDER BY correctCount DESC, totalAnswered DESC
+    `).all(quiz.session_id);
+    const leaderboard = leaderboardRows.map(row => ({
+      displayName: row.display_name || 'ไม่ทราบชื่อ',
+      correctCount: Number(row.correctCount || 0),
+      totalAnswered: Number(row.totalAnswered || 0)
+    }));
+    io.to(quiz.room_id).emit('quiz:leaderboard', { sessionId: quiz.session_id, leaderboard });
+  });
+
+  socket.on('quiz:bulkCreate', ({ roomId, quizzes, createdBy }, cb) => {
+    const callback = typeof cb === 'function' ? cb : () => {};
+    if (currentRoom !== roomId) { callback({ ok: false, error: 'NOT_IN_ROOM' }); return; }
+    const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(roomId);
+    const isOwner = room && room.creator_socket === socket.id;
+    if (!isOwner) {
+      socket.emit('quiz:denied', { reason: 'ONLY_OWNER' });
+      callback({ ok: false, error: 'ONLY_OWNER' });
+      return;
+    }
+    if (!Array.isArray(quizzes) || !quizzes.length) {
+      callback({ ok: false, error: 'NO_QUIZZES' });
+      return;
+    }
+
+    const sessionId = ensureSession(roomId);
+    let created = 0;
+    const errors = [];
+    quizzes.forEach((quiz, idx) => {
+      const { question, options, correctIndex } = quiz || {};
+      if (!question || !Array.isArray(options) || options.length < 2) {
+        errors.push({ index: idx, reason: 'INVALID_QUIZ' });
+        return;
+      }
+      const parsedIndex = Number(correctIndex);
+      const normalizedIndex = Number.isInteger(parsedIndex) && parsedIndex >= 0 && parsedIndex < options.length
+        ? parsedIndex
+        : null;
+      const qid = uuidv4();
+      db.prepare('INSERT INTO quizzes (id, room_id, session_id, question, options, correct_index, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(qid, roomId, sessionId, question, JSON.stringify(options), normalizedIndex, createdBy || null);
+      created += 1;
+      io.to(roomId).emit('quiz:new', { id: qid, question, options, correctIndex: normalizedIndex });
+    });
+
+    callback({ ok: true, created, errors });
+  });
+
+  socket.on('media:control', ({ roomId, targetId, action }) => {
+    if (!roomId || !targetId || !action) return;
+    if (currentRoom !== roomId) return;
+    const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(roomId);
+    const isOwner = room && room.creator_socket === socket.id;
+    if (!isOwner) {
+      socket.emit('media:control:denied', { reason: 'ONLY_OWNER' });
+      return;
+    }
+    io.to(targetId).emit('media:control', { action, by: displayName });
+  });
+
+  socket.on('media:state', ({ state }) => {
+    if (!currentRoom) return;
+    io.to(currentRoom).emit('media:state', { socketId: socket.id, displayName, state });
   });
 
   socket.on('session:end', async ({ roomId }) => {
@@ -179,6 +256,7 @@ io.to(roomId).emit('session:ended', { forceLeave: true, payload });
   socket.on('disconnect', () => {
   nameMap.delete(socket.id);
   if (currentRoom) {
+    socket.to(currentRoom).emit('media:state', { socketId: socket.id, displayName, state: { disconnected: true } });
     const room = db.prepare('SELECT creator_socket FROM rooms WHERE id = ?').get(currentRoom);
     // ถ้าเป็นผู้สร้าง -> เคลียร์ socket เพื่อให้กลับมาเชื่อมใหม่ได้
     if (room && room.creator_socket === socket.id) {
