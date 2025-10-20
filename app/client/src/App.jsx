@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -6,18 +6,25 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
 function authHeaders(){ const t = sessionStorage.getItem('token'); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
 
 function useHashRoute(){
-  const [route, setRoute] = useState(window.location.hash || '#/dashboard');
+  const [route, setRoute] = useState(() => window.location.hash || '#/dashboard');
   useEffect(() => {
     const onHash = () => setRoute(window.location.hash || '#/dashboard');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  return [route, (r)=>{ window.location.hash = r; }];
+  const navigate = useCallback((nextHash) => {
+    if (!nextHash) return;
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
+    setRoute(nextHash);
+  }, []);
+  return [route, navigate];
 }
 
 export default function App(){
   const [route, navigate] = useHashRoute();
-  if (route.startsWith('#/room')) return <Room navigate={navigate} />;
+  if (route.startsWith('#/room')) return <Room route={route} navigate={navigate} />;
   if (route.startsWith('#/history')) return <History navigate={navigate} />;
   if (route.startsWith('#/auth')) return <Auth navigate={navigate} />;
   return <Dashboard navigate={navigate} />;
@@ -45,7 +52,10 @@ function TopNav({right}){
 
 function Dashboard({ navigate }){
   const token = sessionStorage.getItem('token');
-  if (!token) { window.location.hash = '#/auth'; return null; }
+  useEffect(() => {
+    if (!token) navigate('#/auth');
+  }, [token, navigate]);
+  if (!token) return null;
 
   const [profileName, setProfileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random()*1000)));
   const [roomId, setRoomId] = useState('');
@@ -67,13 +77,11 @@ function Dashboard({ navigate }){
       } catch {}
       setCreatedRoomId(data.roomId);
       localStorage.setItem('profileName', profileName);
+      localStorage.setItem('lastRoomId', data.roomId);
       navigate(`#/room?roomId=${data.roomId}&creator=1`);
     } else {
       alert('สร้างห้องไม่สำเร็จ: ' + (data.error || res.statusText));
     }
-  localStorage.setItem('lastRoomId', data.roomId); // จดจำห้องล่าสุด
-  navigate(`#/room?roomId=${data.roomId}&creator=1`);
-
   };
 
   const joinRoom = () => {
@@ -135,21 +143,15 @@ function Dashboard({ navigate }){
   </>);
 }
 
-function useQuery(){
-  const [q] = useState(() => new URLSearchParams((window.location.hash.split('?')[1]||'')));
-  return q;
-}
-
-function Room({ navigate }) {
-  const q = useQuery();
-  const roomId = q.get('roomId') || '';
-  const isCreator = q.get('creator') === '1';
+function Room({ route, navigate }) {
+  const query = useMemo(() => new URLSearchParams((route.split('?')[1] || '')), [route]);
+  const roomId = query.get('roomId') || '';
+  const isCreator = query.get('creator') === '1';
   const [profileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random() * 1000)));
 
   const [peers, setPeers] = useState([]);
   const [peerNames, setPeerNames] = useState({});
   const [isSharingScreen, setIsSharingScreen] = useState(false);
-  const [lastRoomId, setLastRoomId] = useState(localStorage.getItem('lastRoomId') || '');
 
 
  
@@ -164,6 +166,11 @@ function Room({ navigate }) {
   const [correctIndex, setCorrectIndex] = useState(null);
   const [liveQuiz, setLiveQuiz] = useState(null);
   const [myAnswer, setMyAnswer] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [mediaStates, setMediaStates] = useState({});
+  const [selfControlLock, setSelfControlLock] = useState({ audio: false, video: false });
+  const [uploadedQuizzes, setUploadedQuizzes] = useState([]);
+  const [uploadError, setUploadError] = useState('');
 
   // media
   const localVideoRef = useRef(null);
@@ -173,8 +180,58 @@ function Room({ navigate }) {
   const pcMap = useRef(new Map());
   const myIdRef = useRef(uuidv4());
 
+  const sendMediaCommand = (targetId, action) => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('media:control', { targetId, action });
+  };
+
+  const handleQuizUpload = async (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      const normalized = items
+        .map(item => {
+          const parsedIndex = Number(item?.correctIndex);
+          return ({
+            question: item?.question?.toString?.() || '',
+            options: Array.isArray(item?.options) ? item.options.map(opt => opt?.toString?.() || '').filter(Boolean) : [],
+            correctIndex: Number.isInteger(parsedIndex) ? parsedIndex : null,
+          });
+        })
+        .filter(item => item.question && item.options.length >= 2);
+      if (!normalized.length) {
+        setUploadError('ไม่พบคำถามที่ใช้งานได้ในไฟล์');
+        setUploadedQuizzes([]);
+      } else {
+        setUploadedQuizzes(normalized);
+        setUploadError('');
+      }
+    } catch (err) {
+      console.error('quiz upload parse error', err);
+      setUploadError('ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบว่าเป็น JSON ที่ถูกต้อง');
+      setUploadedQuizzes([]);
+    } finally {
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const applyUploadedQuestion = (index) => {
+    const item = uploadedQuizzes[index];
+    if (!item) return;
+    setQuestion(item.question || '');
+    setOptions(item.options && item.options.length ? item.options : ['', '', '']);
+    setCorrectIndex(typeof item.correctIndex === 'number' ? item.correctIndex : null);
+  };
+
   const toggleScreenShare = async () => {
     try {
+      if (!isSharingScreen && selfControlLock.video) {
+        alert('ผู้สร้างห้องปิดกล้องไว้ ไม่สามารถแชร์หน้าจอได้');
+        return;
+      }
       if (isSharingScreen) {
         localStreamRef.current?.getVideoTracks?.().forEach(t => t.stop());
         const cam = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -262,16 +319,29 @@ function Room({ navigate }) {
   useEffect(() => {
     const socket = io(SERVER_URL, { transports: ['websocket'] });
     socketRef.current = socket;
-    socket.on('connect', () => console.log('socket', socket.id));
+    socket.on('connect', () => {
+      console.log('socket', socket.id);
+      setSelfControlLock({ audio: false, video: false });
+    });
 
     socket.on('peers', async (others) => {
       setPeers(others);
       setPeerNames(prev => ({ ...prev, ...Object.fromEntries(others.map(o => [o.id, o.name || 'Guest'])) }));
+      setMediaStates(prev => {
+        const next = { ...prev };
+        others.forEach(o => {
+          if (o.id !== socket.id && !next[o.id]) {
+            next[o.id] = { audioMuted: false, videoDisabled: false };
+          }
+        });
+        return next;
+      });
       for (const p of others) await makeOffer(p.id);
     });
     socket.on('peer-joined', ({ id, name }) => {
       setPeers(prev => [...prev, { id, name }]);
       setPeerNames(prev => ({ ...prev, [id]: name || 'Guest' }));
+      setMediaStates(prev => ({ ...prev, [id]: prev[id] || { audioMuted: false, videoDisabled: false } }));
     });
     socket.on('peer-left', ({ id }) => {
       setPeers(prev => prev.filter(p => p.id !== id));
@@ -280,6 +350,12 @@ function Room({ navigate }) {
       pcMap.current.delete(id);
       setRemoteVideos(prev => {
         const x = { ...prev }; delete x[id]; return x;
+      });
+      setMediaStates(prev => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
       });
     });
     socket.on('signal', handleSignal);
@@ -291,9 +367,70 @@ function Room({ navigate }) {
 
     socket.on('quiz:new', (quiz) => { setLiveQuiz(quiz); setMyAnswer(null); });
     socket.on('quiz:denied', () => alert('สร้าง Quiz ไม่ได้: เฉพาะผู้สร้างห้องเท่านั้น'));
+    socket.on('quiz:leaderboard', (payload) => {
+      if (!payload || !Array.isArray(payload.entries)) return;
+      setLeaderboard(payload.entries.map(entry => ({
+        displayName: entry.displayName || entry.display_name || 'ไม่ทราบชื่อ',
+        correctCount: Number(entry.correctCount ?? entry.correctcount ?? 0),
+        totalAnswered: Number(entry.totalAnswered ?? entry.totalanswered ?? 0),
+      })));
+    });
 
     socket.on('session:summary', (payload) => {
-      if (payload.correctByUser) setLeaderboard(payload.correctByUser);
+      if (Array.isArray(payload?.correctByUser)) {
+        const formatted = payload.correctByUser.map(row => ({
+          displayName: row.display_name || row.displayName || 'ไม่ทราบชื่อ',
+          correctCount: Number(row.correctCount || row.correctcount || 0),
+          totalAnswered: Number(row.totalAnswered || row.totalanswered || 0),
+        }));
+        setLeaderboard(formatted);
+      }
+    });
+
+    socket.on('media:control:denied', () => {
+      alert('สั่งปิดไมค์/กล้องไม่ได้: ต้องเป็นผู้สร้างห้องเท่านั้น');
+    });
+
+    socket.on('media:control', ({ action }) => {
+      const lower = String(action || '').toLowerCase();
+      if (lower === 'mute-audio') {
+        const track = localStreamRef.current?.getAudioTracks?.()[0];
+        if (track) track.enabled = false;
+        setSelfControlLock(prev => ({ ...prev, audio: true }));
+        alert('ผู้สร้างห้องได้ปิดไมค์ของคุณ');
+      } else if (lower === 'unmute-audio') {
+        const track = localStreamRef.current?.getAudioTracks?.()[0];
+        if (track) track.enabled = true;
+        setSelfControlLock(prev => ({ ...prev, audio: false }));
+      } else if (lower === 'disable-video') {
+        const track = localStreamRef.current?.getVideoTracks?.()[0];
+        if (track) track.enabled = false;
+        setSelfControlLock(prev => ({ ...prev, video: true }));
+        alert('ผู้สร้างห้องได้ปิดกล้องของคุณ');
+      } else if (lower === 'enable-video') {
+        const track = localStreamRef.current?.getVideoTracks?.()[0];
+        if (track) track.enabled = true;
+        setSelfControlLock(prev => ({ ...prev, video: false }));
+      }
+    });
+
+    socket.on('media:status', ({ targetId, update }) => {
+      if (!targetId || !update) return;
+      setMediaStates(prev => {
+        const next = { ...prev };
+        const current = next[targetId] || { audioMuted: false, videoDisabled: false };
+        next[targetId] = {
+          audioMuted: typeof update.audioMuted === 'boolean' ? update.audioMuted : current.audioMuted,
+          videoDisabled: typeof update.videoDisabled === 'boolean' ? update.videoDisabled : current.videoDisabled,
+        };
+        return next;
+      });
+      if (targetId === socket.id) {
+        setSelfControlLock(prev => ({
+          audio: typeof update.audioMuted === 'boolean' ? update.audioMuted : prev.audio,
+          video: typeof update.videoDisabled === 'boolean' ? update.videoDisabled : prev.video,
+        }));
+      }
     });
 
     socket.on('session:end:denied', () => alert('ยุติห้องไม่ได้: ต้องเป็นผู้สร้างห้อง'));
@@ -321,6 +458,13 @@ function Room({ navigate }) {
     pcMap.current.clear();
     setRemoteVideos({});
     setPeers([]);
+    setLeaderboard([]);
+    setMediaStates({});
+    setSelfControlLock({ audio: false, video: false });
+    setUploadedQuizzes([]);
+    setUploadError('');
+    setLiveQuiz(null);
+    setMyAnswer(null);
     try { socketRef.current?.disconnect(); } catch { }
   };
 
@@ -365,7 +509,24 @@ function Room({ navigate }) {
         <button className="btn ghost" onClick={() => window.open('#/history', '_blank')}>ประวัติ</button>
       </>} />
 
-      <div className="container">
+      {leaderboard.length > 0 && (
+        <div className="leaderboard-card leaderboard-floating">
+          <div className="section-title">Leaderboard</div>
+          <ol className="leaderboard-list">
+            {leaderboard.map((row, idx) => (
+              <li key={idx}>
+                <div className="rank-pill">#{idx + 1}</div>
+                <div className="leaderboard-meta">
+                  <span className="leaderboard-name">{row.displayName}</span>
+                  <span className="leaderboard-score">{row.correctCount}/{row.totalAnswered}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <div className={`container room-container${leaderboard.length ? ' with-leaderboard' : ''}`}>
         <div className="room-grid">
           {/* 🎥 ฝั่งวิดีโอ */}
           <div className="card" style={{ gridColumn: '1 / 2' }}>
@@ -374,25 +535,42 @@ function Room({ navigate }) {
 
             <div className="section-title">วิดีโอคอล</div>
             <div className="videos">
-              <div className="video-wrap">
-                <video ref={localVideoRef} autoPlay playsInline muted></video>
+              <div className={"video-wrap" + (selfControlLock.video ? ' video-off' : '')}>
+                <video ref={localVideoRef} autoPlay playsInline muted style={{ opacity: selfControlLock.video ? 0.2 : 1 }}></video>
                 <div className="name-tag">{profileName}</div>
+                {selfControlLock.audio && <div className="media-badge badge-audio">ไมค์ถูกปิดโดยผู้สร้างห้อง</div>}
+                {selfControlLock.video && <div className="media-badge badge-video">กล้องถูกปิดโดยผู้สร้างห้อง</div>}
               </div>
-              {Object.entries(remoteVideos).map(([peerId, stream]) => (
-                <RemoteMedia key={peerId} stream={stream} name={peerNames[peerId] || peerId.slice(0, 6)} speakersOn={true} />
-              ))}
+              {Object.entries(remoteVideos).map(([peerId, stream]) => {
+                const state = mediaStates[peerId] || { audioMuted: false, videoDisabled: false };
+                return (
+                  <RemoteMedia
+                    key={peerId}
+                    stream={stream}
+                    name={peerNames[peerId] || peerId.slice(0, 6)}
+                    speakersOn={!state.audioMuted}
+                    audioMuted={!!state.audioMuted}
+                    videoDisabled={!!state.videoDisabled}
+                    isCreator={isCreator}
+                    peerId={peerId}
+                    onCommand={sendMediaCommand}
+                  />
+                );
+              })}
             </div>
 
             <div className="controls" style={{ marginTop: 10 }}>
               <button className="btn" onClick={() => {
+                if (selfControlLock.audio) { alert('ไมค์ถูกปิดโดยผู้สร้างห้อง'); return; }
                 const t = localStreamRef.current?.getAudioTracks?.()[0];
                 if (t) { t.enabled = !t.enabled; }
-              }}>ปิดไมค์</button>
+              }}>สลับไมค์</button>
 
               <button className="btn" onClick={() => {
+                if (selfControlLock.video) { alert('กล้องถูกปิดโดยผู้สร้างห้อง'); return; }
                 const v = localStreamRef.current?.getVideoTracks?.()[0];
                 if (v) { v.enabled = !v.enabled; }
-              }}>ปิดกล้อง</button>
+              }}>สลับกล้อง</button>
 
               <button className="btn primary small" onClick={toggleScreenShare}>
                 {isSharingScreen ? 'หยุดแชร์จอ' : 'แชร์จอ'}
@@ -432,6 +610,27 @@ function Room({ navigate }) {
                     </label>
                   </div>
                 ))}
+                <div className="upload-block">
+                  <label className="upload-label">
+                    <span>อัปโหลดไฟล์ Quiz (.json)</span>
+                    <input type="file" accept=".json" onChange={handleQuizUpload} />
+                  </label>
+                  <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>รูปแบบไฟล์: [{{"question":"...","options":["A","B"],"correctIndex":0}}, …]</p>
+                  {uploadError && <p className="muted" style={{ color: '#dc2626' }}>{uploadError}</p>}
+                  {uploadedQuizzes.length > 0 && (
+                    <div className="uploaded-list">
+                      <div className="muted" style={{ marginBottom: 6 }}>เลือกคำถามจากไฟล์</div>
+                      <ul>
+                        {uploadedQuizzes.map((item, idx) => (
+                          <li key={idx}>
+                            <button type="button" className="btn small" onClick={() => applyUploadedQuestion(idx)}>ใช้ข้อที่ {idx + 1}</button>
+                            <span>{item.question}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
                 <div className="controls">
                   <button className="btn primary" onClick={createQuiz}>ส่ง Quiz</button>
                 </div>
@@ -455,7 +654,7 @@ function Room({ navigate }) {
                   </div>
                 </div>
 
-              
+
               </>
             )}
           </div>
@@ -469,22 +668,36 @@ function Room({ navigate }) {
 
 
 
-function RemoteMedia({ stream, name, speakersOn }){
+function RemoteMedia({ stream, name, speakersOn, audioMuted, videoDisabled, isCreator, peerId, onCommand }){
   const vref = useRef(null);
   const aref = useRef(null);
   useEffect(()=>{
     if (vref.current) vref.current.srcObject = stream;
+  }, [stream]);
+  useEffect(()=>{
     if (aref.current) {
       aref.current.srcObject = stream;
-      aref.current.muted = !speakersOn;
+      aref.current.muted = audioMuted ? true : !speakersOn;
       const p = aref.current.play(); if (p && p.catch) p.catch(()=>{});
     }
-  }, [stream, speakersOn]);
+  }, [stream, speakersOn, audioMuted]);
   return (
-    <div className="video-wrap">
-      <video ref={vref} autoPlay playsInline />
+    <div className={"video-wrap" + (videoDisabled ? ' video-off' : '')}>
+      <video ref={vref} autoPlay playsInline style={{ opacity: videoDisabled ? 0.2 : 1 }} />
       <audio ref={aref} autoPlay />
       <div className="name-tag">{name}</div>
+      {audioMuted && <div className="media-badge badge-audio">ไมค์ถูกปิดโดยผู้สร้างห้อง</div>}
+      {videoDisabled && <div className="media-badge badge-video">กล้องถูกปิดโดยผู้สร้างห้อง</div>}
+      {isCreator && onCommand && (
+        <div className="host-controls">
+          <button className="btn small" onClick={() => onCommand(peerId, audioMuted ? 'unmute-audio' : 'mute-audio')}>
+            {audioMuted ? 'เปิดไมค์' : 'ปิดไมค์'}
+          </button>
+          <button className="btn small" onClick={() => onCommand(peerId, videoDisabled ? 'enable-video' : 'disable-video')}>
+            {videoDisabled ? 'เปิดกล้อง' : 'ปิดกล้อง'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
