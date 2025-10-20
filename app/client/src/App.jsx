@@ -49,8 +49,12 @@ function Dashboard({ navigate }){
 
   const [profileName, setProfileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random()*1000)));
   const [roomId, setRoomId] = useState('');
-  const [createdRoomId, setCreatedRoomId] = useState('');
   const [lastRoomId, setLastRoomId] = useState(localStorage.getItem('lastRoomId') || '');
+  const [createdRoomId, setCreatedRoomId] = useState(lastRoomId);
+
+  useEffect(() => {
+    setCreatedRoomId(prev => (prev === lastRoomId ? prev : lastRoomId));
+  }, [lastRoomId]);
 
 
 
