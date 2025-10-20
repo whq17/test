@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -6,13 +6,20 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
 function authHeaders(){ const t = sessionStorage.getItem('token'); return t ? { 'Authorization': 'Bearer ' + t } : {}; }
 
 function useHashRoute(){
-  const [route, setRoute] = useState(window.location.hash || '#/dashboard');
+  const [route, setRoute] = useState(() => window.location.hash || '#/dashboard');
   useEffect(() => {
     const onHash = () => setRoute(window.location.hash || '#/dashboard');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  return [route, (r)=>{ window.location.hash = r; }];
+  const navigate = useCallback((nextHash) => {
+    if (!nextHash) return;
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
+    setRoute(nextHash);
+  }, []);
+  return [route, navigate];
 }
 
 export default function App(){
@@ -45,7 +52,10 @@ function TopNav({right}){
 
 function Dashboard({ navigate }){
   const token = sessionStorage.getItem('token');
-  if (!token) { window.location.hash = '#/auth'; return null; }
+  useEffect(() => {
+    if (!token) navigate('#/auth');
+  }, [token, navigate]);
+  if (!token) return null;
 
   const [profileName, setProfileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random()*1000)));
   const [roomId, setRoomId] = useState('');
@@ -67,13 +77,11 @@ function Dashboard({ navigate }){
       } catch {}
       setCreatedRoomId(data.roomId);
       localStorage.setItem('profileName', profileName);
+      localStorage.setItem('lastRoomId', data.roomId);
       navigate(`#/room?roomId=${data.roomId}&creator=1`);
     } else {
       alert('สร้างห้องไม่สำเร็จ: ' + (data.error || res.statusText));
     }
-  localStorage.setItem('lastRoomId', data.roomId); // จดจำห้องล่าสุด
-  navigate(`#/room?roomId=${data.roomId}&creator=1`);
-
   };
 
   const joinRoom = () => {
