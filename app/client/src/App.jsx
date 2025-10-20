@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -24,7 +24,7 @@ function useHashRoute(){
 
 export default function App(){
   const [route, navigate] = useHashRoute();
-  if (route.startsWith('#/room')) return <Room navigate={navigate} />;
+  if (route.startsWith('#/room')) return <Room route={route} navigate={navigate} />;
   if (route.startsWith('#/history')) return <History navigate={navigate} />;
   if (route.startsWith('#/auth')) return <Auth navigate={navigate} />;
   return <Dashboard navigate={navigate} />;
@@ -143,15 +143,10 @@ function Dashboard({ navigate }){
   </>);
 }
 
-function useQuery(){
-  const [q] = useState(() => new URLSearchParams((window.location.hash.split('?')[1]||'')));
-  return q;
-}
-
-function Room({ navigate }) {
-  const q = useQuery();
-  const roomId = q.get('roomId') || '';
-  const isCreator = q.get('creator') === '1';
+function Room({ route, navigate }) {
+  const query = useMemo(() => new URLSearchParams((route.split('?')[1] || '')), [route]);
+  const roomId = query.get('roomId') || '';
+  const isCreator = query.get('creator') === '1';
   const [profileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random() * 1000)));
 
   const [peers, setPeers] = useState([]);
