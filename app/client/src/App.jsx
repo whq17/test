@@ -49,8 +49,12 @@ function Dashboard({ navigate }){
 
   const [profileName, setProfileName] = useState(localStorage.getItem('profileName') || ('ผู้ใช้-' + Math.floor(Math.random()*1000)));
   const [roomId, setRoomId] = useState('');
-  const [createdRoomId, setCreatedRoomId] = useState('');
   const [lastRoomId, setLastRoomId] = useState(localStorage.getItem('lastRoomId') || '');
+  const [createdRoomId, setCreatedRoomId] = useState(lastRoomId);
+
+  useEffect(() => {
+    setCreatedRoomId(prev => (prev === lastRoomId ? prev : lastRoomId));
+  }, [lastRoomId]);
 
 
 
@@ -66,13 +70,13 @@ function Dashboard({ navigate }){
         if (data.creatorKey) { store[data.roomId] = data.creatorKey; localStorage.setItem('creatorKeys', JSON.stringify(store)); }
       } catch {}
       setCreatedRoomId(data.roomId);
+      setLastRoomId(data.roomId);
       localStorage.setItem('profileName', profileName);
+      localStorage.setItem('lastRoomId', data.roomId);
       navigate(`#/room?roomId=${data.roomId}&creator=1`);
     } else {
       alert('สร้างห้องไม่สำเร็จ: ' + (data.error || res.statusText));
     }
-  localStorage.setItem('lastRoomId', data.roomId); // จดจำห้องล่าสุด
-  navigate(`#/room?roomId=${data.roomId}&creator=1`);
 
   };
 
