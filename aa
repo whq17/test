@@ -1,0 +1,422 @@
+-- Clean lowercased schema with PK & AUTO_INCREMENT (keeps all data)
+-- Source: your phpMyAdmin dump
+-- Charset / modes
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET time_zone = "+00:00";
+/*!40101 SET NAMES utf8mb4 */;
+
+-- Ensure database
+CREATE DATABASE IF NOT EXISTS `cy_arena_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `cy_arena_db`;
+
+-- =============== TABLES (lowercase) ===============
+
+-- 1) booking_status  (from tbl_booking_status)
+DROP TABLE IF EXISTS `booking_status`;
+CREATE TABLE `booking_status` (
+  `BookingStatusID` int(11) NOT NULL,
+  `StatusName` varchar(100) NOT NULL,
+  PRIMARY KEY (`BookingStatusID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `booking_status` (`BookingStatusID`, `StatusName`) VALUES
+(4, 'ยกเลิกโดยระบบ'),
+(3, 'ยกเลิกโดยลูกค้า'),
+(2, 'ยืนยันแล้ว'),
+(1, 'รอยืนยัน'),
+(5, 'เข้าใช้บริการแล้ว');
+
+ALTER TABLE `booking_status` AUTO_INCREMENT=6;
+
+-- 2) payment_status (from tbl_payment_status)
+DROP TABLE IF EXISTS `payment_status`;
+CREATE TABLE `payment_status` (
+  `PaymentStatusID` int(11) NOT NULL,
+  `StatusName` varchar(100) NOT NULL,
+  PRIMARY KEY (`PaymentStatusID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `payment_status` (`PaymentStatusID`, `StatusName`) VALUES
+(4, 'คืนเงินแล้ว'),
+(2, 'ชำระเงินสำเร็จ'),
+(3, 'รอคืนเงิน'),
+(1, 'รอชำระเงิน');
+
+ALTER TABLE `payment_status` AUTO_INCREMENT=5;
+
+-- 3) role (from tbl_role)
+DROP TABLE IF EXISTS `role`;
+CREATE TABLE `role` (
+  `RoleID` int(11) NOT NULL,
+  `RoleName` varchar(100) NOT NULL,
+  PRIMARY KEY (`RoleID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `role` (`RoleID`, `RoleName`) VALUES
+(1, 'Admin'),
+(2, 'Staff');
+
+ALTER TABLE `role` AUTO_INCREMENT=3;
+
+-- 4) venue_type (from tbl_venue_type)
+DROP TABLE IF EXISTS `venue_type`;
+CREATE TABLE `venue_type` (
+  `VenueTypeID` int(11) NOT NULL,
+  `TypeName` varchar(255) NOT NULL,
+  PRIMARY KEY (`VenueTypeID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `venue_type` (`VenueTypeID`, `TypeName`) VALUES
+(1, 'แบดมินตัน'),
+(2, 'เบสบอล'),
+(3, 'เทนนิส'),
+(4, 'ฮอกกี้พื้นสนาม'),
+(5, 'อเมริกันฟุตบอล'),
+(6, 'วอลเลย์บอล'),
+(7, 'รักบี้'),
+(8, 'ยิงธนู'),
+(9, 'ฟุตบอล'),
+(10, 'ฟุตซอล'),
+(11, 'ปีนผา'),
+(12, 'ปิงปอง'),
+(13, 'บาสเกตบอล');
+
+ALTER TABLE `venue_type` AUTO_INCREMENT=14;
+
+-- 5) employee (from tbl_employee)
+DROP TABLE IF EXISTS `employee`;
+CREATE TABLE `employee` (
+  `EmployeeID` int(11) NOT NULL,
+  `FirstName` varchar(255) NOT NULL,
+  `Phone` varchar(20) NOT NULL,
+  `RoleID` int(11) NOT NULL,
+  `Username` varchar(100) NOT NULL,
+  `Password` varchar(255) NOT NULL,
+  PRIMARY KEY (`EmployeeID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `employee` (`EmployeeID`, `FirstName`, `Phone`, `RoleID`, `Username`, `Password`) VALUES
+(1, 'ผู้ดูแล', '0999999999', 1, 'admin', 'admin1234');
+
+ALTER TABLE `employee` AUTO_INCREMENT=2;
+
+-- 6) customer (from tbl_customer)
+DROP TABLE IF EXISTS `customer`;
+CREATE TABLE `customer` (
+  `CustomerID` int(11) NOT NULL,
+  `FirstName` varchar(255) NOT NULL,
+  `LastName` varchar(255) NOT NULL,
+  `Email` varchar(255) NOT NULL,
+  `Phone` varchar(20) NOT NULL,
+  `AvatarPath` varchar(255) DEFAULT NULL,
+  `Username` varchar(100) NOT NULL,
+  `Password` varchar(255) NOT NULL,
+  `Status` varchar(20) NOT NULL DEFAULT 'active',
+  `DateCreated` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`CustomerID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `customer` (`CustomerID`, `FirstName`, `LastName`, `Email`, `Phone`, `AvatarPath`, `Username`, `Password`, `Status`, `DateCreated`) VALUES
+(1, 'สมชาย', 'ใจดี', 'somchai@email.com', '0812345678', 'uploads/avatars/--1-1761763308.jpg', 'somchai', '1234', 'active', '2025-10-21 06:04:34'),
+(2, 'สมหญิง', 'รักไทย', 'somying@email.com', '0898765432', NULL, 'somying', '1234', 'active', '2025-10-21 06:04:34'),
+(3, 'fafafa', 'afafafa', 'fasfafaf@hfjgfs', '2421542513', NULL, 'kannaja', '$2y$10$zmzZpjXmduqOBuzWsavEpeEi97r/6niglbMFXekk4ldSsKQzbDdYW', 'active', '2025-10-21 06:27:15'),
+(4, 'sese', 'werwe', 'dadad@fafa', '14214251', NULL, 'gg', '$2y$10$2riSRuqTh/o890FHPjtIjOPNOa0Ab1BR4GVNs561ceWm7dDvvmhhy', 'active', '2025-10-21 08:56:38'),
+(5, '123', '123', '123@gmail.com', '09347447474', 'uploads/avatars/123-123-5-1761742816.jpg', '123', '$2y$10$4Jz.S/Egau5zhvLGD2IhIezna0EZuirl1sSBy5cjAGnWQClc8d9k2', 'active', '2025-10-28 17:54:18'),
+(8, '1', '1', '1@gmai.com', '1', NULL, '1', '$2y$10$DB5vLZL13qjjBTMbvaGEEOlSQhcR8y3hr5St0S5ctoOJp1dn9kGSW', 'active', '2025-10-28 17:55:22'),
+(9, 'kan', 'kan', 'kan@gmail.com', '123', NULL, 'kan', '$2y$10$laoFCHmjJJqyg7BYhRzJOePecy0A1PTN54A68yLRHmEi.MRbt4yAm', 'active', '2025-10-29 22:47:55'),
+(10, 'guide', 'handsome', 'kantaphoom05@gmail.com', '0941682322', NULL, 'Guide', '$2y$10$Ivhau/CxpNsyLeLWTEu6SOdIMOcNrhOMGHpzYlVT.DsFDCK/syOxu', 'active', '2025-10-30 18:14:27'),
+(17, 'guide', 'lnw', 'kantaphoom@gmail.com', '0651088252', 'uploads/avatars/asdsadad-sdasdasdada-17-1761849369.jpg', 'guide2', '$2y$10$Yo2P0kLIMQDzLlkxkD.zHOWJe.ty/Ng.mbUK8lpbrkFA4Y9C7SEr6', 'active', '2025-10-30 18:16:45');
+
+ALTER TABLE `customer` AUTO_INCREMENT=18;
+
+-- 7) venue (from tbl_venue)
+DROP TABLE IF EXISTS `venue`;
+CREATE TABLE `venue` (
+  `VenueID` int(10) UNSIGNED NOT NULL,
+  `VenueName` varchar(255) NOT NULL,
+  `VenueTypeID` int(11) NOT NULL,
+  `Description` text DEFAULT NULL,
+  `Address` text DEFAULT NULL,
+  `PricePerHour` decimal(10,2) NOT NULL,
+  `TimeOpen` time DEFAULT NULL,
+  `TimeClose` time DEFAULT NULL,
+  `Status` varchar(50) NOT NULL DEFAULT 'available',
+  `ImageURL` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`VenueID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `venue` (`VenueID`, `VenueName`, `VenueTypeID`, `Description`, `Address`, `PricePerHour`, `TimeOpen`, `TimeClose`, `Status`, `ImageURL`) VALUES
+(1, 'สนามแบดมินตัน Green Court', 1, 'สนามแบดมินตันพื้นไม้ 4 สนาม พร้อมไฟส่องสว่าง', 'ถนนสุขภาพดี เขตเมือง', 150.00, '08:00:00', '22:00:00', 'available', 'images/badminton.jpg'),
+(2, 'สนามเบสบอล SmartBase', 2, 'สนามเบสบอลมาตรฐานพร้อมอัฒจันทร์รองรับผู้ชม', 'ซอยนักกีฬากลาง 5', 400.00, '08:00:00', '21:00:00', 'available', 'images/baseball.jpg'),
+(3, 'สนามเทนนิส Grand Sport', 3, 'พื้นสนามอะคริลิคมาตรฐาน ITF', 'ถนนนักกีฬา แขวงสนามกีฬา', 300.00, '07:00:00', '20:00:00', 'available', 'images/tennis.jpg'),
+(4, 'สนามฮอกกี้พื้นสนาม BlueStick', 4, 'พื้นยางกันลื่นมาตรฐาน FIH', 'ซอยสนามกีฬากลาง', 350.00, '08:00:00', '20:00:00', 'available', 'images/hockey.jpg'),
+(6, 'สนามวอลเลย์บอล City Court', 6, 'สนามในร่มพื้นยางรองรับการแข่งขัน', 'ถนนกีฬาไทย เขตสปอร์ตทาวน์', 250.00, '08:00:00', '21:00:00', 'available', 'images/volleyball.jpg'),
+(7, 'สนามรักบี้ Rhino Arena', 7, 'สนามหญ้าธรรมชาติขนาดมาตรฐาน', 'ถนนกีฬาสากล แขวงนักกีฬา', 600.00, '07:00:00', '19:00:00', 'available', 'images/rugby.jpg'),
+(8, 'สนามยิงธนู Arrow Zone', 8, 'สนามยิงธนูมาตรฐาน 30 เมตร พร้อมครูฝึก', 'ถนนสุขภาพ 9 เขตนักกีฬา', 200.00, '09:00:00', '18:00:00', 'available', 'images/archery.jpg'),
+(9, 'สนามฟุตบอล Arena Five', 9, 'สนามฟุตบอลหญ้าเทียมขนาด 7 คน', 'หมู่บ้านสปอร์ตคอมเพล็กซ์', 500.00, '08:00:00', '22:00:00', 'available', 'images/football.jpg'),
+(10, 'สนามฟุตซอล FastKick', 10, 'สนามฟุตซอลในร่มพื้นยางกันกระแทก', 'ถนนฟิตสปอร์ต', 400.00, '08:00:00', '22:00:00', 'available', 'images/futsal.jpg'),
+(11, 'สนามปีนผา RockUp Center', 11, 'ผนังปีนสูง 12 เมตร พร้อมระบบเซฟตี้ครบ', 'ซอยแอดเวนเจอร์ เขตเมืองเหนือ', 300.00, '10:00:00', '20:00:00', 'available', 'images/climbing.jpg'),
+(12, 'สนามปิงปอง PingZone', 12, 'สนามปิงปองในร่มมีโต๊ะ 5 โต๊ะ พร้อมแอร์เย็น', 'ถนนนักกีฬา ซอย 3', 100.00, '09:00:00', '21:00:00', 'available', 'images/pingpong.jpg'),
+(13, 'สนามบาสเกตบอล Sport Hall', 13, 'สนามบาสในร่มพื้นไม้มาตรฐาน NBA มีที่นั่งสําหรับคนดูพร้อมในการเเข่งขัน', 'ศูนย์กีฬากลางเมือง', 500.00, '07:00:00', '22:00:00', 'available', 'images/basketball.jpg'),
+(14, 'สนามฟุตบอล GreenField', 9, 'สนามหญ้าเทียมมาตรฐาน FIFA พร้อมไฟส่องสว่างเต็มสนาม', 'ถนนกีฬากลาง เขตเมือง', 500.00, '07:00:00', '22:00:00', 'available', 'images/football2.jpg'),
+(15, 'สนามฟุตบอล Cygreen', 9, 'สนามหญ้าเทียมมาตรฐาน ขาดไฟแสงสว่าง ', 'ถนนกีฬากลาง เขตเมือง', 200.00, '07:00:00', '22:00:00', 'available', 'images/football3.jpg'),
+(16, 'สนามฟุตซอล สนามเขียว', 10, 'สนามฟุตซอลในกลางเเจ้งคอนกรีตทาสี', 'ถนนหนองกุง', 300.00, '08:00:00', '21:00:00', 'available', 'images/futsal2.jpg'),
+(17, 'สนามฟุตซอล89 ARENO', 10, 'สนามฟุตซอลกลางเเจ้งพื้นยางกันกระแทก', 'ถนนเเม่รําเพย', 400.00, '08:00:00', '22:00:00', 'available', 'images/futsal3.jpg'),
+(18, 'สนามบาสเกตบอล Miami ', 13, 'สนามบาสในร่มพื้นไม้มาตรฐาน NBA', 'ศูนย์กีฬากลางเมือง', 400.00, '07:00:00', '22:00:00', 'available', 'images/basketball2.jpg'),
+(19, 'สนามบาสเกตบอล Golden', 13, 'สนามบาสกลางเเจ้งคอนกรีต', 'ใกล้ตัวเมือง', 250.00, '07:00:00', '22:00:00', 'available', 'images/basketball3.jpg'),
+(20, 'สนามแบดมินตัน Lebron Court', 1, 'สนามแบดมินตันในร่มพื้นไม้ 5 สนาม พร้อมไฟส่องสว่าง', 'ถนนอัสสัมชัญ เขตเมือง', 150.00, '08:00:00', '22:00:00', 'available', 'images/badminton2.jpg'),
+(21, 'สนามแบดมินตัน Ming Court', 1, 'สนามแบดมินตันในร่มคอนกรีต 4 สนาม พร้อมไฟส่องสว่าง', 'ถนนสวนกุหลาบ เขตใกล้เมือง', 100.00, '08:00:00', '22:00:00', 'available', 'images/badminton3.jpg'),
+(22, 'สนามเทนนิส Pumu sport', 3, 'พื้นสนามอะคริลิคมาตรฐาน ITF', 'ถนนราชดําเนิน ใกล้ตัวเมือง', 300.00, '07:00:00', '20:00:00', 'available', 'images/tennis2.jpg'),
+(23, 'สนามเทนนิส Forrest Sport', 3, 'พื้นสนามอะคริลิคมาตรฐาน ITF สนามในร่ม มีไฟสว่าง', 'ถนนกันทรวิชัย เขตตัวเมือง', 350.00, '07:00:00', '20:00:00', 'available', 'images/tennis3.jpg'),
+(24, 'สนามปิงปอง ปทุมวิไล', 12, 'สนามปิงปองในร่มมีโต๊ะ 5 โต๊ะ พร้อมแอร์เย็น', 'ถนนประชาชื่น ซอย 8 เขตเมืองเหนือ', 100.00, '09:00:00', '21:00:00', 'available', 'images/pingpong2.jpg'),
+(25, 'สนามปิงปอง Nara Sport', 12, 'สนามปิงปองในร่มมีโต๊ะ 4 โต๊ะ พร้อมแอร์เย็น', 'ถนนศรีสุข ซอยกีฬา 2 เขตกลางเมือง', 100.00, '09:00:00', '21:00:00', 'available', 'images/pingpong3.jpg'),
+(26, 'สนามวอลเลย์บอล คอร์ตเมืองเหนือ', 6, 'สนามในร่มพื้นยางรองรับการแข่งขัน', 'ถนนประชาราษฎร์ ซอย 10 เขตเมืองเหนือ', 250.00, '08:00:00', '21:00:00', 'available', 'images/volleyball2.jpg'),
+(27, 'สนามวอลเลย์บอล ศรีนครคอร์ต', 6, 'สนามในร่มพื้นยางรองรับการแข่งขัน มีเเอร์ให้ในสนาม', 'ถนนศรีนคร ซอยกีฬา 1 เขตกลางเมือง', 300.00, '08:00:00', '21:00:00', 'available', 'images/volleyball3.jpg'),
+(28, 'สนามเบสบอล ราชพฤกษ์โดม', 2, 'สนามเบสบอลมาตรฐานพร้อมอัฒจันทร์รองรับผู้ชม สนามสะอาดสามารถใช้ในการเล่นหรือการเเข่งได้', 'ถนนราชพฤกษ์ ซอย 12 เขตตะวันตก', 400.00, '08:00:00', '21:00:00', 'available', 'images/baseball2.jpg'),
+(29, 'สนามเบสบอล เมืองทองพาร์ค', 2, 'สนามเบสบอลมาตรฐานในร่ม', 'ถนนเมืองทองธานี ซอยกีฬา 3 เขตกลางเมือง', 300.00, '08:00:00', '21:00:00', 'available', 'images/baseball3.jpg'),
+(30, 'สนามยิงธนู ธนูสเตเดียม', 8, 'สนามยิงธนูมาตรฐาน ระยะ 30–50 เมตร มีครูฝึกดูแล เหมาะทั้งผู้เริ่มต้นและมือสมัครเล่น', 'ถนนนักกีฬากลาง เขตเมืองเหนือ', 250.00, '09:00:00', '18:00:00', 'available', 'images/archery2.jpg'),
+(31, 'สนามยิงธนู ริเวอร์เรนจ์', 8, 'เลนยิง 10 ช่อง ระยะ 10–40 เมตร มีอุปกรณ์ให้เช่าและจุดพักผ่อน', 'ถนนริมน้ำ ซอย 5 เขตตะวันออก', 200.00, '09:00:00', '18:00:00', 'available', 'images/archery3.jpg'),
+(32, 'สนามรักบี้ ช้างเผือกสเตเดียม', 7, 'สนามรักบี้หญ้าจริงขนาดมาตรฐาน มีเสาประตูและเส้นสนามครบ พร้อมห้องแต่งตัวและห้องอาบน้ำ', 'ถนนสนามกีฬาแห่งชาติ เขตเมืองเก่า', 600.00, '07:00:00', '19:00:00', 'available', 'images/rugby2.jpg'),
+(33, 'สนามรักบี้ บางกอกรัคบี้พาร์ค', 7, 'พื้นหญ้าเทียมคุณภาพสูง รองรับการซ้อมและการแข่งขันระดับสมัครเล่นถึงกึ่งอาชีพ มีไฟส่องสว่างรอบสนาม', 'ถนนวิภาวดีรังสิต ซอย 10 เขตเหนือเมือง', 600.00, '07:00:00', '19:00:00', 'available', 'images/rugby3.jpg'),
+(34, 'สนามปีนผา CliffHouse', 11, 'ผนังปีนหลากเส้นทาง ระดับเริ่มต้นถึงกลาง มีโซนบูลเดอริงและอุปกรณ์ให้เช่า', 'ถนนกีฬากลาง ซอย 4 เขตกลางเมือง', 300.00, '10:00:00', '20:00:00', 'available', 'images/climbing2.jpg'),
+(35, 'สนามปีนผา Summit Gym', 11, 'ผนังสูง 15 เมตร มีระบบเซฟตี้อัตโนมัติและครูผู้ฝึกสอน ประสบการณ์ครบสำหรับทุกวัย', 'ถนนศรีกีฬา ซอย 3 เขตตะวันออก', 300.00, '10:00:00', '20:00:00', 'available', 'images/climbing3.jpg'),
+(36, 'สนามฮอกกี้พื้นสนาม เมืองใหม่สปอร์ต', 4, 'พื้นสนามมาตรฐาน FIH พื้นยางสังเคราะห์กันลื่น มีไฟส่องสว่างรอบสนาม เหมาะสำหรับซ้อมและแข่งขัน', 'ถนนสุขสวัสดิ์ ซอยกีฬา 9 เขตเมืองใหม่', 350.00, '08:00:00', '20:00:00', 'available', 'images/hockey2.jpg'),
+(37, 'สนามฮอกกี้พื้นสนาม ศรีนครอารีน่า', 4, 'เลย์เอาต์ขนาดมาตรฐาน มีกรอบประตูและเส้นสนามครบ พร้อมห้องแต่งตัวและอุปกรณ์ให้ยืม', 'ถนนศรีนคร ซอย 7 เขตตะวันออก', 350.00, '08:00:00', '20:00:00', 'available', 'images/hockey3.jpg');
+
+ALTER TABLE `venue` AUTO_INCREMENT=41;
+
+-- 8) promotion (from tbl_promotion)  (keeps existing row id=0)
+DROP TABLE IF EXISTS `promotion`;
+CREATE TABLE `promotion` (
+  `PromotionID` int(11) NOT NULL,
+  `PromoCode` varchar(50) NOT NULL,
+  `PromoName` varchar(255) NOT NULL,
+  `Description` text DEFAULT NULL,
+  `DiscountType` enum('percent','fixed') NOT NULL,
+  `DiscountValue` decimal(10,2) NOT NULL,
+  `StartDate` datetime NOT NULL,
+  `EndDate` datetime NOT NULL,
+  `Conditions` text DEFAULT NULL,
+  PRIMARY KEY (`PromotionID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `promotion` (`PromotionID`, `PromoCode`, `PromoName`, `Description`, `DiscountType`, `DiscountValue`, `StartDate`, `EndDate`, `Conditions`) VALUES
+(0, 'kan', 'kan', 'kan', 'fixed', 100.00, '2025-10-30 05:22:00', '2025-11-14 05:22:00', NULL);
+
+ALTER TABLE `promotion` AUTO_INCREMENT=1;
+
+-- 9) booking (from tbl_booking)
+DROP TABLE IF EXISTS `booking`;
+CREATE TABLE `booking` (
+  `BookingID` int(11) NOT NULL,
+  `CustomerID` int(11) NOT NULL,
+  `VenueID` int(11) NOT NULL,
+  `BookingStatusID` int(11) NOT NULL,
+  `PaymentStatusID` int(11) NOT NULL,
+  `PaymentSlipPath` varchar(255) DEFAULT NULL,
+  `PromotionID` int(11) DEFAULT NULL,
+  `EmployeeID` int(11) DEFAULT NULL,
+  `BookingDate` datetime NOT NULL DEFAULT current_timestamp(),
+  `StartTime` datetime NOT NULL,
+  `EndTime` datetime NOT NULL,
+  `HoursBooked` decimal(4,2) NOT NULL,
+  `TotalPrice` decimal(10,2) NOT NULL,
+  `Discount` decimal(10,2) DEFAULT 0.00,
+  `NetPrice` decimal(10,2) NOT NULL,
+  `PaymentMethod` varchar(50) DEFAULT NULL,
+  `Notes` text DEFAULT NULL,
+  PRIMARY KEY (`BookingID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `booking` (`BookingID`, `CustomerID`, `VenueID`, `BookingStatusID`, `PaymentStatusID`, `PaymentSlipPath`, `PromotionID`, `EmployeeID`, `BookingDate`, `StartTime`, `EndTime`, `HoursBooked`, `TotalPrice`, `Discount`, `NetPrice`, `PaymentMethod`, `Notes`) VALUES
+(91, 17, 19, 3, 1, NULL, NULL, NULL, '2025-10-31 03:46:10', '2025-11-09 07:00:00', '2025-11-09 08:00:00', 1.00, 250.00, 0.00, 250.00, NULL, NULL),
+(92, 17, 8, 5, 2, 'uploads/payment_slips/slip_92_1761857880.jpg', NULL, 1, '2025-10-31 03:57:21', '2025-10-31 09:00:00', '2025-10-31 12:00:00', 3.00, 600.00, 0.00, 600.00, NULL, NULL),
+(93, 17, 18, 5, 2, NULL, NULL, 1, '2025-10-31 03:59:19', '2025-10-31 09:00:00', '2025-10-31 14:00:00', 3.50, 1400.00, 0.00, 1400.00, NULL, NULL);
+
+ALTER TABLE `booking` AUTO_INCREMENT=94;
+
+-- 10) review (from tbl_review)
+DROP TABLE IF EXISTS `review`;
+CREATE TABLE `review` (
+  `ReviewID` int(11) NOT NULL,
+  `CustomerID` int(11) NOT NULL,
+  `VenueID` int(11) NOT NULL,
+  `BookingID` int(11) NOT NULL,
+  `Rating` int(11) NOT NULL,
+  `Comment` text DEFAULT NULL,
+  `ReviewDate` timestamp NOT NULL DEFAULT current_timestamp(),
+  `CreatedAt` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`ReviewID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `review` (`ReviewID`, `CustomerID`, `VenueID`, `BookingID`, `Rating`, `Comment`, `ReviewDate`, `CreatedAt`) VALUES
+(3, 17, 8, 92, 4, 'ดีมากครับ', '2025-10-30 20:58:41', '2025-10-31 03:58:41'),
+(4, 17, 18, 93, 3, 'กกกกกก', '2025-10-30 21:22:22', '2025-10-31 04:22:22');
+
+ALTER TABLE `review` AUTO_INCREMENT=5;
+
+-- =============== VIEWS (updated to lowercase tables) ===============
+
+DROP VIEW IF EXISTS `vw_booking_funnel`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_booking_funnel` AS
+SELECT bs.StatusName AS booking_status,
+       ps.StatusName AS payment_status,
+       COUNT(0) AS cnt
+FROM booking b
+JOIN booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+JOIN payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY bs.StatusName, ps.StatusName
+ORDER BY bs.StatusName ASC, ps.StatusName ASC;
+
+DROP VIEW IF EXISTS `vw_customer_ltv`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_customer_ltv` AS
+SELECT c.CustomerID,
+       CONCAT(c.FirstName,' ',c.LastName) AS customer_name,
+       COUNT(b.BookingID) AS total_bookings,
+       SUM(b.TotalPrice) AS total_revenue,
+       AVG(b.TotalPrice) AS avg_order_value,
+       MIN(b.StartTime) AS first_booking_at,
+       MAX(b.StartTime) AS last_booking_at,
+       TO_DAYS(CURDATE()) - TO_DAYS(MAX(b.StartTime)) AS recency_days
+FROM customer c
+LEFT JOIN booking b ON b.CustomerID = c.CustomerID
+LEFT JOIN booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+  AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+  AND ps.StatusName = 'ชำระเงินสำเร็จ'
+GROUP BY c.CustomerID, CONCAT(c.FirstName,' ',c.LastName)
+ORDER BY SUM(b.TotalPrice) DESC;
+
+DROP VIEW IF EXISTS `vw_employee_performance`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_employee_performance` AS
+SELECT e.EmployeeID,
+       e.FirstName AS employee_name,
+       COUNT(b.BookingID) AS handled_bookings,
+       SUM(CASE WHEN ps.StatusName = 'ชำระเงินสำเร็จ' THEN b.TotalPrice ELSE 0 END) AS revenue_approved,
+       MIN(b.StartTime) AS first_booking_at,
+       MAX(b.StartTime) AS last_booking_at
+FROM employee e
+LEFT JOIN booking b ON b.EmployeeID = e.EmployeeID
+LEFT JOIN payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY e.EmployeeID, e.FirstName
+ORDER BY SUM(CASE WHEN ps.StatusName = 'ชำระเงินสำเร็จ' THEN b.TotalPrice ELSE 0 END) DESC;
+
+DROP VIEW IF EXISTS `vw_monthly_cancellation_rate`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_monthly_cancellation_rate` AS
+SELECT DATE_FORMAT(b.StartTime,'%Y-%m') AS ym,
+       COUNT(0) AS total_bookings,
+       SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) AS cancelled,
+       ROUND(100.0 * SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) / COUNT(0), 2) AS cancel_rate_pct
+FROM booking b
+JOIN booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
+ORDER BY DATE_FORMAT(b.StartTime,'%Y-%m') ASC;
+
+DROP VIEW IF EXISTS `vw_monthly_revenue`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_monthly_revenue` AS
+SELECT DATE_FORMAT(b.StartTime,'%Y-%m') AS ym,
+       SUM(b.TotalPrice) AS revenue,
+       COUNT(0) AS bookings,
+       AVG(b.TotalPrice) AS avg_order_value
+FROM booking b
+JOIN booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+JOIN payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+  AND ps.StatusName = 'ชำระเงินสำเร็จ'
+GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
+ORDER BY DATE_FORMAT(b.StartTime,'%Y-%m') ASC;
+
+DROP VIEW IF EXISTS `vw_peak_hours_by_type`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_peak_hours_by_type` AS
+SELECT vt.TypeName,
+       HOUR(b.StartTime) AS hour_of_day,
+       COUNT(0) AS bookings,
+       ROW_NUMBER() OVER (PARTITION BY vt.TypeName ORDER BY COUNT(0) DESC) AS rn_in_type
+FROM booking b
+JOIN venue v ON v.VenueID = b.VenueID
+JOIN venue_type vt ON vt.VenueTypeID = v.VenueTypeID
+JOIN booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+GROUP BY vt.TypeName, HOUR(b.StartTime)
+ORDER BY vt.TypeName ASC, COUNT(0) DESC;
+
+DROP VIEW IF EXISTS `vw_promotion_performance`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_promotion_performance` AS
+SELECT p.PromotionID,
+       p.PromoCode AS promo_code,
+       COUNT(b.BookingID) AS uses_count,
+       COALESCE(SUM(CASE WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName = 'ชำระเงินสำเร็จ' THEN b.NetPrice ELSE 0 END),0) AS revenue_from_promo,
+       MIN(b.StartTime) AS first_used_at,
+       MAX(b.StartTime) AS last_used_at
+FROM promotion p
+LEFT JOIN booking b ON b.PromotionID = p.PromotionID
+LEFT JOIN booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY p.PromotionID, p.PromoCode
+ORDER BY COUNT(b.BookingID) DESC,
+         COALESCE(SUM(CASE WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName = 'ชำระเงินสำเร็จ' THEN b.NetPrice ELSE 0 END),0) DESC;
+
+DROP VIEW IF EXISTS `vw_review_scores_by_venue`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_review_scores_by_venue` AS
+SELECT v.VenueID,
+       v.VenueName,
+       COUNT(r.ReviewID) AS reviews_count,
+       AVG(r.Rating) AS avg_rating,
+       MIN(r.CreatedAt) AS first_review_at,
+       MAX(r.CreatedAt) AS last_review_at
+FROM venue v
+LEFT JOIN review r ON r.VenueID = v.VenueID
+GROUP BY v.VenueID, v.VenueName
+ORDER BY AVG(r.Rating) DESC, COUNT(r.ReviewID) DESC;
+
+DROP VIEW IF EXISTS `vw_top10_venues_by_revenue`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_top10_venues_by_revenue` AS
+SELECT x.VenueID, x.VenueName, x.revenue_90d, x.bookings_90d, x.rn
+FROM (
+  SELECT
+    v.VenueID,
+    v.VenueName,
+    ROUND(COALESCE(SUM(CASE
+      WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
+           AND b.BookingStatusID = 1
+           AND b.PaymentStatusID = 1
+      THEN b.NetPrice ELSE 0 END),0),2) AS revenue_90d,
+    COALESCE(SUM(CASE
+      WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
+           AND b.BookingStatusID = 1
+           AND b.PaymentStatusID = 1
+      THEN 1 ELSE 0 END),0) AS bookings_90d,
+    ROW_NUMBER() OVER (
+      ORDER BY SUM(CASE
+        WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
+             AND b.BookingStatusID = 1
+             AND b.PaymentStatusID = 1
+        THEN b.NetPrice ELSE 0 END) DESC,
+      v.VenueName
+    ) AS rn
+  FROM venue v
+  LEFT JOIN booking b ON b.VenueID = v.VenueID
+  GROUP BY v.VenueID, v.VenueName
+) AS x
+WHERE x.rn <= 10;
+
+DROP VIEW IF EXISTS `vw_venue_utilization_daily`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_venue_utilization_daily` AS
+WITH bookings_daily AS (
+  SELECT
+    b.VenueID,
+    CAST(b.StartTime AS DATE) AS usage_date,
+    ROUND(SUM(CASE WHEN b.BookingStatusID = 1 AND b.PaymentStatusID = 1 THEN b.HoursBooked ELSE 0 END), 2) AS booked_hours
+  FROM booking b
+  GROUP BY b.VenueID, CAST(b.StartTime AS DATE)
+)
+SELECT
+  v.VenueName,
+  d.usage_date,
+  COALESCE(d.booked_hours, 0) AS booked_hours,
+  24 AS open_hours,
+  ROUND(COALESCE(d.booked_hours, 0) / 24 * 100, 2) AS utilization_pct
+FROM bookings_daily d
+JOIN venue v ON v.VenueID = d.VenueID;
+
+-- Done.
