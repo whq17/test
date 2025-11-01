@@ -1,19 +1,22 @@
--- phpMyAdmin SQL Dump (REWRITTEN TO RUN + Tbl_* names)
--- Server version: MariaDB 10.4+ / MySQL 8+
+-- phpMyAdmin SQL Dump (REWRITTEN, Tbl_* names, fixed views & constraints)
+-- Server: MariaDB 10.4+ / MySQL 8+
 -- NOTE:
--- - เปลี่ยนชื่อตาราง: tbl_* -> Tbl_*
--- - ลบ stand-in tables ของ views และสร้าง VIEW ใหม่แบบ SQL SECURITY INVOKER (ไม่มี DEFINER)
--- - คง INSERT เดิมทุกแถวและ logic เดิมของ views
--- - แก้ไวยากรณ์ view ที่ผิด (vw_venue_utilization_daily มีวงเล็บเกิน)
+-- - เปลี่ยนชื่อตารางจาก tbl_* -> Tbl_*
+-- - คง INSERT เดิมทุกแถว
+-- - แก้ Views ให้ใช้สถานะตามชื่อ ไม่อ้างเลข, ใช้ SQL SECURITY INVOKER, และแก้วงเล็บเกิน
+-- - เติม PRIMARY KEY/AI ตามที่ขาด และแก้ PromotionID=0 -> 1
+
+-- OPTIONAL:
+-- USE cy_arena_db;
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
--- =====================================================================
--- Tables (renamed to Tbl_*)
--- =====================================================================
+-- =========================================================
+-- 1) TABLES  (renamed to Tbl_*)
+-- =========================================================
 
 CREATE TABLE `Tbl_booking` (
   `BookingID` int(11) NOT NULL,
@@ -209,30 +212,98 @@ INSERT INTO `Tbl_venue_type` (`VenueTypeID`, `TypeName`) VALUES
 (12, 'ปิงปอง'),
 (13, 'บาสเกตบอล');
 
--- =====================================================================
--- Views (recreated w/ SQL SECURITY INVOKER; keep your original logic)
--- =====================================================================
+-- =========================================================
+-- 2) CONSTRAINTS / INDEXES / AUTO_INCREMENT
+-- =========================================================
 
+-- Primary Keys
+ALTER TABLE `Tbl_booking`        ADD PRIMARY KEY (`BookingID`);
+ALTER TABLE `Tbl_customer`       ADD PRIMARY KEY (`CustomerID`);
+ALTER TABLE `Tbl_review`         ADD PRIMARY KEY (`ReviewID`);
+ALTER TABLE `Tbl_venue`          ADD PRIMARY KEY (`VenueID`);
+ALTER TABLE `Tbl_venue_type`     ADD PRIMARY KEY (`VenueTypeID`);
+ALTER TABLE `Tbl_booking_status` ADD PRIMARY KEY (`BookingStatusID`);
+ALTER TABLE `Tbl_payment_status` ADD PRIMARY KEY (`PaymentStatusID`);
+ALTER TABLE `Tbl_role`           ADD PRIMARY KEY (`RoleID`);
+ALTER TABLE `Tbl_employee`       ADD PRIMARY KEY (`EmployeeID`);
+ALTER TABLE `Tbl_promotion`      ADD PRIMARY KEY (`PromotionID`);
+
+-- AUTO_INCREMENT (ที่จำเป็น)
+ALTER TABLE `Tbl_booking`     MODIFY `BookingID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
+ALTER TABLE `Tbl_customer`    MODIFY `CustomerID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+ALTER TABLE `Tbl_review`      MODIFY `ReviewID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+ALTER TABLE `Tbl_venue`       MODIFY `VenueID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
+ALTER TABLE `Tbl_venue_type`  MODIFY `VenueTypeID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+ALTER TABLE `Tbl_employee`    MODIFY `EmployeeID` int(11) NOT NULL AUTO_INCREMENT;
+
+-- แก้ PromotionID ตัวอย่างจาก 0 -> 1 ก่อนเปิด AUTO_INCREMENT
+UPDATE `Tbl_promotion` SET `PromotionID` = 1 WHERE `PromotionID` = 0;
+ALTER TABLE `Tbl_promotion`   MODIFY `PromotionID` int(11) NOT NULL AUTO_INCREMENT;
+
+-- ช่วยเร่งความเร็ว Query ที่ใช้บ่อย
+ALTER TABLE `Tbl_booking`
+  ADD INDEX `idx_booking_starttime` (`StartTime`),
+  ADD INDEX `idx_booking_status`   (`BookingStatusID`),
+  ADD INDEX `idx_booking_payment`  (`PaymentStatusID`),
+  ADD INDEX `idx_booking_venue`    (`VenueID`);
+
+ALTER TABLE `Tbl_venue`
+  ADD INDEX `idx_venue_type` (`VenueTypeID`);
+
+-- =========================================================
+-- 3) VIEWS (drop stand-ins & recreate fixed)
+-- =========================================================
+
+-- ลบ stand-in tables ถ้ามีจาก dump เดิม
+DROP TABLE IF EXISTS `vw_booking_funnel`;
+DROP TABLE IF EXISTS `vw_customer_ltv`;
+DROP TABLE IF EXISTS `vw_employee_performance`;
+DROP TABLE IF EXISTS `vw_monthly_cancellation_rate`;
+DROP TABLE IF EXISTS `vw_monthly_revenue`;
+DROP TABLE IF EXISTS `vw_peak_hours_by_type`;
+DROP TABLE IF EXISTS `vw_promotion_performance`;
+DROP TABLE IF EXISTS `vw_review_scores_by_venue`;
+DROP TABLE IF EXISTS `vw_top10_venues_by_revenue`;
+DROP TABLE IF EXISTS `vw_venue_utilization_daily`;
+
+-- ลบวิวเก่าแล้วสร้างใหม่
+DROP VIEW IF EXISTS `vw_booking_funnel`;
+DROP VIEW IF EXISTS `vw_customer_ltv`;
+DROP VIEW IF EXISTS `vw_employee_performance`;
+DROP VIEW IF EXISTS `vw_monthly_cancellation_rate`;
+DROP VIEW IF EXISTS `vw_monthly_revenue`;
+DROP VIEW IF EXISTS `vw_peak_hours_by_type`;
+DROP VIEW IF EXISTS `vw_promotion_performance`;
+DROP VIEW IF EXISTS `vw_review_scores_by_venue`;
+DROP VIEW IF EXISTS `vw_top10_venues_by_revenue`;
+DROP VIEW IF EXISTS `vw_venue_utilization_daily`;
+
+-- Booking funnel (สรุปตามสถานะ)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_booking_funnel` AS
 SELECT
   bs.StatusName AS booking_status,
   ps.StatusName AS payment_status,
-  COUNT(0) AS cnt
+  COUNT(*)      AS cnt
 FROM `Tbl_booking` b
 JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
 JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY bs.StatusName, ps.StatusName
-ORDER BY bs.StatusName ASC, ps.StatusName ASC;
+ORDER BY bs.StatusName, ps.StatusName;
 
+-- Customer LTV (นับเฉพาะที่ยืนยัน/เข้าใช้ + ชำระสำเร็จ)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_customer_ltv` AS
 SELECT
   c.CustomerID,
   CONCAT(c.FirstName,' ',c.LastName) AS customer_name,
   COUNT(b.BookingID) AS total_bookings,
-  SUM(b.TotalPrice) AS total_revenue,
-  AVG(b.TotalPrice) AS avg_order_value,
+  SUM(CASE
+        WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+        THEN b.TotalPrice ELSE 0 END) AS total_revenue,
+  AVG(CASE
+        WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+        THEN b.TotalPrice END) AS avg_order_value,
   MIN(b.StartTime) AS first_booking_at,
   MAX(b.StartTime) AS last_booking_at,
   TO_DAYS(CURDATE()) - TO_DAYS(MAX(b.StartTime)) AS recency_days
@@ -240,44 +311,47 @@ FROM `Tbl_customer` c
 LEFT JOIN `Tbl_booking` b ON b.CustomerID = c.CustomerID
 LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
 LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
-  AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
-  AND ps.StatusName = 'ชำระเงินสำเร็จ'
 GROUP BY c.CustomerID, CONCAT(c.FirstName,' ',c.LastName)
-ORDER BY SUM(b.TotalPrice) DESC;
+ORDER BY total_revenue DESC;
 
+-- พนักงาน (จำนวนงาน + รายได้ที่ “ชำระสำเร็จ”)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_employee_performance` AS
 SELECT
   e.EmployeeID,
   e.FirstName AS employee_name,
   COUNT(b.BookingID) AS handled_bookings,
-  SUM(CASE WHEN ps.StatusName = 'ชำระเงินสำเร็จ' THEN b.TotalPrice ELSE 0 END) AS revenue_approved,
+  SUM(CASE WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+           THEN b.TotalPrice ELSE 0 END) AS revenue_approved,
   MIN(b.StartTime) AS first_booking_at,
   MAX(b.StartTime) AS last_booking_at
 FROM `Tbl_employee` e
 LEFT JOIN `Tbl_booking` b ON b.EmployeeID = e.EmployeeID
+LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
 LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY e.EmployeeID, e.FirstName
 ORDER BY revenue_approved DESC;
 
+-- อัตรายกเลิกรายเดือน
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_monthly_cancellation_rate` AS
 SELECT
   DATE_FORMAT(b.StartTime,'%Y-%m') AS ym,
-  COUNT(0) AS total_bookings,
+  COUNT(*) AS total_bookings,
   SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) AS cancelled,
-  ROUND(100.0 * SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) / COUNT(0), 2) AS cancel_rate_pct
+  ROUND(100.0 * SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) / COUNT(*), 2) AS cancel_rate_pct
 FROM `Tbl_booking` b
 JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
 GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
-ORDER BY ym ASC;
+ORDER BY ym;
 
+-- รายได้รายเดือน (ยืนยัน/เข้าใช้ + ชำระสำเร็จ)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_monthly_revenue` AS
 SELECT
   DATE_FORMAT(b.StartTime,'%Y-%m') AS ym,
   SUM(b.TotalPrice) AS revenue,
-  COUNT(0) AS bookings,
+  COUNT(*) AS bookings,
   AVG(b.TotalPrice) AS avg_order_value
 FROM `Tbl_booking` b
 JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
@@ -285,23 +359,33 @@ JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
 WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
   AND ps.StatusName = 'ชำระเงินสำเร็จ'
 GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
-ORDER BY ym ASC;
+ORDER BY ym;
 
+-- ชั่วโมงพีคต่อประเภทสนาม (ห่อเป็น subquery ก่อนคำนวณ ROW_NUMBER)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_peak_hours_by_type` AS
 SELECT
-  vt.TypeName AS TypeName,
-  HOUR(b.StartTime) AS hour_of_day,
-  COUNT(0) AS bookings,
-  ROW_NUMBER() OVER (PARTITION BY vt.TypeName ORDER BY COUNT(0) DESC) AS rn_in_type
-FROM `Tbl_booking` b
-JOIN `Tbl_venue` v  ON v.VenueID = b.VenueID
-JOIN `Tbl_venue_type` vt ON vt.VenueTypeID = v.VenueTypeID
-JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
-GROUP BY vt.TypeName, HOUR(b.StartTime)
-ORDER BY vt.TypeName ASC, COUNT(0) DESC;
+  t.TypeName,
+  t.hour_of_day,
+  t.bookings,
+  ROW_NUMBER() OVER (PARTITION BY t.TypeName ORDER BY t.bookings DESC, t.hour_of_day) AS rn_in_type
+FROM (
+  SELECT
+    vt.TypeName,
+    HOUR(b.StartTime) AS hour_of_day,
+    COUNT(*) AS bookings
+  FROM `Tbl_booking` b
+  JOIN `Tbl_venue` v  ON v.VenueID = b.VenueID
+  JOIN `Tbl_venue_type` vt ON vt.VenueTypeID = v.VenueTypeID
+  JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+  WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+    AND ps.StatusName = 'ชำระเงินสำเร็จ'
+  GROUP BY vt.TypeName, HOUR(b.StartTime)
+) AS t
+ORDER BY t.TypeName, t.bookings DESC, t.hour_of_day;
 
+-- ประสิทธิภาพโปรโมชัน
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_promotion_performance` AS
 SELECT
@@ -320,6 +404,7 @@ LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY p.PromotionID, p.PromoCode
 ORDER BY uses_count DESC, revenue_from_promo DESC;
 
+-- คะแนนรีวิวต่อสนาม
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_review_scores_by_venue` AS
 SELECT
@@ -334,38 +419,39 @@ LEFT JOIN `Tbl_review` r ON r.VenueID = v.VenueID
 GROUP BY v.VenueID, v.VenueName
 ORDER BY avg_rating DESC, reviews_count DESC;
 
--- logic เดิมของคุณ: ใช้ ID สถานะ 1/1
+-- TOP 10 รายได้สูงสุดใน 90 วัน (ยืนยัน/เข้าใช้ + ชำระสำเร็จ)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_top10_venues_by_revenue` AS
-SELECT x.VenueID, x.VenueName, x.revenue_90d, x.bookings_90d, x.rn
-FROM (
+SELECT * FROM (
   SELECT
     v.VenueID,
     v.VenueName,
     ROUND(COALESCE(SUM(CASE
-      WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
-       AND b.BookingStatusID = 1
-       AND b.PaymentStatusID = 1
+      WHEN b.StartTime >= (CURDATE() - INTERVAL 90 DAY)
+       AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+       AND ps.StatusName = 'ชำระเงินสำเร็จ'
       THEN b.NetPrice ELSE 0 END),0),2) AS revenue_90d,
     COALESCE(SUM(CASE
-      WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
-       AND b.BookingStatusID = 1
-       AND b.PaymentStatusID = 1
+      WHEN b.StartTime >= (CURDATE() - INTERVAL 90 DAY)
+       AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+       AND ps.StatusName = 'ชำระเงินสำเร็จ'
       THEN 1 ELSE 0 END),0) AS bookings_90d,
     ROW_NUMBER() OVER (ORDER BY
-      SUM(CASE
-        WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
-         AND b.BookingStatusID = 1
-         AND b.PaymentStatusID = 1
-        THEN b.NetPrice ELSE 0 END) DESC,
-      v.VenueName) AS rn
+        SUM(CASE
+          WHEN b.StartTime >= (CURDATE() - INTERVAL 90 DAY)
+           AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+           AND ps.StatusName = 'ชำระเงินสำเร็จ'
+          THEN b.NetPrice ELSE 0 END) DESC,
+        v.VenueName) AS rn
   FROM `Tbl_venue` v
   LEFT JOIN `Tbl_booking` b ON b.VenueID = v.VenueID
+  LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
   GROUP BY v.VenueID, v.VenueName
-) AS x
+) x
 WHERE x.rn <= 10;
 
--- แก้วงเล็บปิดเกิน + คง logic เดิมของคุณ (ID = 1/1)
+-- Utilization รายวันต่อสนาม (แก้วงเล็บเกิน และใช้สถานะตามชื่อ)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_venue_utilization_daily` AS
 WITH bookings_daily AS (
@@ -373,45 +459,22 @@ WITH bookings_daily AS (
     b.VenueID,
     CAST(b.StartTime AS DATE) AS usage_date,
     ROUND(SUM(CASE
-      WHEN b.BookingStatusID = 1 AND b.PaymentStatusID = 1
+      WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+       AND ps.StatusName = 'ชำระเงินสำเร็จ'
       THEN b.HoursBooked ELSE 0 END), 2) AS booked_hours
-  FROM `Tbl_booking` AS b
+  FROM `Tbl_booking` b
+  LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
   GROUP BY b.VenueID, CAST(b.StartTime AS DATE)
 )
 SELECT
   v.VenueName,
   d.usage_date,
-  COALESCE(d.booked_hours,0) AS booked_hours,
+  COALESCE(d.booked_hours, 0) AS booked_hours,
   24 AS open_hours,
   ROUND(COALESCE(d.booked_hours,0) / 24 * 100, 2) AS utilization_pct
 FROM bookings_daily d
 JOIN `Tbl_venue` v ON v.VenueID = d.VenueID;
-
--- =====================================================================
--- Indexes / AUTO_INCREMENT (เหมือนเดิม แต่อ้างอิงชื่อใหม่)
--- =====================================================================
-
-ALTER TABLE `Tbl_booking`
-  ADD PRIMARY KEY (`BookingID`);
-ALTER TABLE `Tbl_customer`
-  ADD PRIMARY KEY (`CustomerID`);
-ALTER TABLE `Tbl_review`
-  ADD PRIMARY KEY (`ReviewID`);
-ALTER TABLE `Tbl_venue`
-  ADD PRIMARY KEY (`VenueID`);
-ALTER TABLE `Tbl_venue_type`
-  ADD PRIMARY KEY (`VenueTypeID`);
-
-ALTER TABLE `Tbl_booking`
-  MODIFY `BookingID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
-ALTER TABLE `Tbl_customer`
-  MODIFY `CustomerID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
-ALTER TABLE `Tbl_review`
-  MODIFY `ReviewID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-ALTER TABLE `Tbl_venue`
-  MODIFY `VenueID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
-ALTER TABLE `Tbl_venue_type`
-  MODIFY `VenueTypeID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
