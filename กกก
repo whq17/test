@@ -1,0 +1,230 @@
+-- ===== Uppercase the leading 't' in table names (tbl_* -> Tbl_*) =====
+SET FOREIGN_KEY_CHECKS=0;
+START TRANSACTION;
+
+-- 1) เปลี่ยนชื่อ TABLE (เฉพาะตัวแรก t -> T)
+-- หมายเหตุ: ใช้ IF EXISTS ป้องกัน error ถ้าบางตารางมีอยู่แล้ว/เปลี่ยนชื่อไปก่อนหน้า
+RENAME TABLE
+  `tbl_booking`         TO `Tbl_booking`,
+  `tbl_booking_status`  TO `Tbl_booking_status`,
+  `tbl_customer`        TO `Tbl_customer`,
+  `tbl_employee`        TO `Tbl_employee`,
+  `tbl_payment_status`  TO `Tbl_payment_status`,
+  `tbl_promotion`       TO `Tbl_promotion`,
+  `tbl_review`          TO `Tbl_review`,
+  `tbl_role`            TO `Tbl_role`,
+  `tbl_venue`           TO `Tbl_venue`,
+  `tbl_venue_type`      TO `Tbl_venue_type`;
+
+-- 2) ลบวิวเดิม (ถ้ามี) แล้วสร้างใหม่ให้ชี้ชื่อตารางแบบขึ้นต้นด้วย T
+DROP VIEW IF EXISTS `vw_booking_funnel`;
+DROP VIEW IF EXISTS `vw_customer_ltv`;
+DROP VIEW IF EXISTS `vw_employee_performance`;
+DROP VIEW IF EXISTS `vw_monthly_cancellation_rate`;
+DROP VIEW IF EXISTS `vw_monthly_revenue`;
+DROP VIEW IF EXISTS `vw_peak_hours_by_type`;
+DROP VIEW IF EXISTS `vw_promotion_performance`;
+DROP VIEW IF EXISTS `vw_review_scores_by_venue`;
+DROP VIEW IF EXISTS `vw_top10_venues_by_revenue`;
+DROP VIEW IF EXISTS `vw_venue_utilization_daily`;
+
+-- 2.1 Booking funnel
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_booking_funnel` AS
+SELECT
+  bs.StatusName AS booking_status,
+  ps.StatusName AS payment_status,
+  COUNT(*)      AS cnt
+FROM Tbl_booking b
+JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY bs.StatusName, ps.StatusName
+ORDER BY bs.StatusName ASC, ps.StatusName ASC;
+
+-- 2.2 Customer LTV (นับเฉพาะยืนยัน/เข้าใช้ + จ่ายสำเร็จ)
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_customer_ltv` AS
+SELECT
+  c.CustomerID,
+  CONCAT(c.FirstName,' ',c.LastName) AS customer_name,
+  COUNT(b.BookingID) AS total_bookings,
+  SUM(CASE
+        WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+        THEN b.TotalPrice ELSE 0 END) AS total_revenue,
+  AVG(CASE
+        WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+        THEN b.TotalPrice END) AS avg_order_value,
+  MIN(b.StartTime) AS first_booking_at,
+  MAX(b.StartTime) AS last_booking_at,
+  TO_DAYS(CURDATE()) - TO_DAYS(MAX(b.StartTime)) AS recency_days
+FROM Tbl_customer c
+LEFT JOIN Tbl_booking b ON b.CustomerID = c.CustomerID
+LEFT JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY c.CustomerID, CONCAT(c.FirstName,' ',c.LastName)
+ORDER BY total_revenue DESC;
+
+-- 2.3 Employee performance
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_employee_performance` AS
+SELECT
+  e.EmployeeID,
+  e.FirstName AS employee_name,
+  COUNT(b.BookingID) AS handled_bookings,
+  SUM(CASE WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+           THEN b.TotalPrice ELSE 0 END) AS revenue_approved,
+  MIN(b.StartTime) AS first_booking_at,
+  MAX(b.StartTime) AS last_booking_at
+FROM Tbl_employee e
+LEFT JOIN Tbl_booking b ON b.EmployeeID = e.EmployeeID
+LEFT JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY e.EmployeeID, e.FirstName
+ORDER BY revenue_approved DESC;
+
+-- 2.4 Monthly cancellation rate
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_monthly_cancellation_rate` AS
+SELECT
+  DATE_FORMAT(b.StartTime,'%Y-%m') AS ym,
+  COUNT(*) AS total_bookings,
+  SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) AS cancelled,
+  ROUND(100.0 * SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) / COUNT(*), 2) AS cancel_rate_pct
+FROM Tbl_booking b
+JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
+ORDER BY ym ASC;
+
+-- 2.5 Monthly revenue (เฉพาะยืนยัน/เข้าใช้ + จ่ายสำเร็จ)
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_monthly_revenue` AS
+SELECT
+  DATE_FORMAT(b.StartTime,'%Y-%m') AS ym,
+  SUM(b.TotalPrice) AS revenue,
+  COUNT(*) AS bookings,
+  AVG(b.TotalPrice) AS avg_order_value
+FROM Tbl_booking b
+JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+  AND ps.StatusName = 'ชำระเงินสำเร็จ'
+GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
+ORDER BY ym ASC;
+
+-- 2.6 Peak hours by venue type
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_peak_hours_by_type` AS
+SELECT
+  t.TypeName,
+  t.hour_of_day,
+  t.bookings,
+  ROW_NUMBER() OVER (PARTITION BY t.TypeName ORDER BY t.bookings DESC, t.hour_of_day) AS rn_in_type
+FROM (
+  SELECT
+    vt.TypeName,
+    HOUR(b.StartTime) AS hour_of_day,
+    COUNT(*) AS bookings
+  FROM Tbl_booking b
+  JOIN Tbl_venue v  ON v.VenueID = b.VenueID
+  JOIN Tbl_venue_type vt ON vt.VenueTypeID = v.VenueTypeID
+  JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+  JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+  WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+    AND ps.StatusName = 'ชำระเงินสำเร็จ'
+  GROUP BY vt.TypeName, HOUR(b.StartTime)
+) AS t
+ORDER BY t.TypeName ASC, t.bookings DESC;
+
+-- 2.7 Promotion performance
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_promotion_performance` AS
+SELECT
+  p.PromotionID,
+  p.PromoCode AS promo_code,
+  COUNT(b.BookingID) AS uses_count,
+  COALESCE(SUM(CASE
+    WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName = 'ชำระเงินสำเร็จ'
+    THEN b.NetPrice ELSE 0 END),0) AS revenue_from_promo,
+  MIN(b.StartTime) AS first_used_at,
+  MAX(b.StartTime) AS last_used_at
+FROM Tbl_promotion p
+LEFT JOIN Tbl_booking b ON b.PromotionID = p.PromotionID
+LEFT JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+GROUP BY p.PromotionID, p.PromoCode
+ORDER BY uses_count DESC, revenue_from_promo DESC;
+
+-- 2.8 Review scores by venue
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_review_scores_by_venue` AS
+SELECT
+  v.VenueID,
+  v.VenueName,
+  COUNT(r.ReviewID) AS reviews_count,
+  AVG(r.Rating) AS avg_rating,
+  MIN(r.CreatedAt) AS first_review_at,
+  MAX(r.CreatedAt) AS last_review_at
+FROM Tbl_venue v
+LEFT JOIN Tbl_review r ON r.VenueID = v.VenueID
+GROUP BY v.VenueID, v.VenueName
+ORDER BY avg_rating DESC, reviews_count DESC;
+
+-- 2.9 Top 10 venues by revenue (90d)
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_top10_venues_by_revenue` AS
+SELECT * FROM (
+  SELECT
+    v.VenueID,
+    v.VenueName,
+    ROUND(COALESCE(SUM(CASE
+      WHEN b.StartTime >= (CURDATE() - INTERVAL 90 DAY)
+       AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+       AND ps.StatusName = 'ชำระเงินสำเร็จ'
+      THEN b.NetPrice ELSE 0 END),0),2) AS revenue_90d,
+    COALESCE(SUM(CASE
+      WHEN b.StartTime >= (CURDATE() - INTERVAL 90 DAY)
+       AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+       AND ps.StatusName = 'ชำระเงินสำเร็จ'
+      THEN 1 ELSE 0 END),0) AS bookings_90d,
+    ROW_NUMBER() OVER (ORDER BY
+        SUM(CASE
+          WHEN b.StartTime >= (CURDATE() - INTERVAL 90 DAY)
+           AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+           AND ps.StatusName = 'ชำระเงินสำเร็จ'
+          THEN b.NetPrice ELSE 0 END) DESC,
+        v.VenueName) AS rn
+  FROM Tbl_venue v
+  LEFT JOIN Tbl_booking b ON b.VenueID = v.VenueID
+  LEFT JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+  GROUP BY v.VenueID, v.VenueName
+) x
+WHERE x.rn <= 10;
+
+-- 2.10 Venue utilization daily
+CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
+VIEW `vw_venue_utilization_daily` AS
+WITH bookings_daily AS (
+  SELECT
+    b.VenueID,
+    CAST(b.StartTime AS DATE) AS usage_date,
+    ROUND(SUM(CASE
+      WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+       AND ps.StatusName = 'ชำระเงินสำเร็จ'
+      THEN b.HoursBooked ELSE 0 END), 2) AS booked_hours
+  FROM Tbl_booking b
+  LEFT JOIN Tbl_booking_status bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN Tbl_payment_status ps ON ps.PaymentStatusID = b.PaymentStatusID
+  GROUP BY b.VenueID, CAST(b.StartTime AS DATE)
+)
+SELECT
+  v.VenueName,
+  d.usage_date,
+  COALESCE(d.booked_hours, 0) AS booked_hours,
+  24 AS open_hours,
+  ROUND(COALESCE(d.booked_hours,0) / 24 * 100, 2) AS utilization_pct
+FROM bookings_daily d
+JOIN Tbl_venue v ON v.VenueID = d.VenueID;
+
+COMMIT;
+SET FOREIGN_KEY_CHECKS=1;
