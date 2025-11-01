@@ -1,0 +1,85 @@
+-- ใช้ฐานข้อมูลที่เว็บต่ออยู่ (จาก error = defaultdb)
+USE `defaultdb`;
+
+-- สร้าง "สะพาน" (Bridge Views) ให้ defaultdb มองเห็นตารางใน cy_arena_db
+-- ถ้า DB จริงที่คุณ import ไม่ได้ชื่อ cy_arena_db ให้แก้ชื่อด้านล่างนี้ให้ตรง
+
+-- ตารางหลัก
+DROP VIEW IF EXISTS `tbl_booking`;         CREATE VIEW `tbl_booking`         AS SELECT * FROM `cy_arena_db`.`tbl_booking`;
+DROP VIEW IF EXISTS `tbl_booking_status`;  CREATE VIEW `tbl_booking_status`  AS SELECT * FROM `cy_arena_db`.`tbl_booking_status`;
+DROP VIEW IF EXISTS `tbl_customer`;        CREATE VIEW `tbl_customer`        AS SELECT * FROM `cy_arena_db`.`tbl_customer`;
+DROP VIEW IF EXISTS `tbl_payment_status`;  CREATE VIEW `tbl_payment_status`  AS SELECT * FROM `cy_arena_db`.`tbl_payment_status`;
+DROP VIEW IF EXISTS `tbl_promotion`;       CREATE VIEW `tbl_promotion`       AS SELECT * FROM `cy_arena_db`.`tbl_promotion`;
+DROP VIEW IF EXISTS `tbl_review`;          CREATE VIEW `tbl_review`          AS SELECT * FROM `cy_arena_db`.`tbl_review`;
+DROP VIEW IF EXISTS `tbl_venue`;           CREATE VIEW `tbl_venue`           AS SELECT * FROM `cy_arena_db`.`tbl_venue`;
+DROP VIEW IF EXISTS `tbl_venue_type`;      CREATE VIEW `tbl_venue_type`      AS SELECT * FROM `cy_arena_db`.`tbl_venue_type`;
+DROP VIEW IF EXISTS `tbl_employee`;        CREATE VIEW `tbl_employee`        AS SELECT * FROM `cy_arena_db`.`tbl_employee`;
+
+-- เผื่อโค้ดอ้างชื่อแบบตัวใหญ่ (Tbl_*)
+DROP VIEW IF EXISTS `Tbl_Booking`;         CREATE VIEW `Tbl_Booking`         AS SELECT * FROM `tbl_booking`;
+DROP VIEW IF EXISTS `Tbl_Booking_Status`;  CREATE VIEW `Tbl_Booking_Status`  AS SELECT * FROM `tbl_booking_status`;
+DROP VIEW IF EXISTS `Tbl_Customer`;        CREATE VIEW `Tbl_Customer`        AS SELECT * FROM `tbl_customer`;
+DROP VIEW IF EXISTS `Tbl_Payment_Status`;  CREATE VIEW `Tbl_Payment_Status`  AS SELECT * FROM `tbl_payment_status`;
+DROP VIEW IF EXISTS `Tbl_Promotion`;       CREATE VIEW `Tbl_Promotion`       AS SELECT * FROM `tbl_promotion`;
+DROP VIEW IF EXISTS `Tbl_Review`;          CREATE VIEW `Tbl_Review`          AS SELECT * FROM `tbl_review`;
+DROP VIEW IF EXISTS `Tbl_Venue`;           CREATE VIEW `Tbl_Venue`           AS SELECT * FROM `tbl_venue`;
+DROP VIEW IF EXISTS `Tbl_Venue_Type`;      CREATE VIEW `Tbl_Venue_Type`      AS SELECT * FROM `tbl_venue_type`;
+DROP VIEW IF EXISTS `Tbl_Employee`;        CREATE VIEW `Tbl_Employee`        AS SELECT * FROM `tbl_employee`;
+
+-- สร้าง Views รายงานที่เว็บใช้ (เวอร์ชันที่ผมแก้แล้ว)
+DROP VIEW IF EXISTS `vw_top10_venues_by_revenue`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_top10_venues_by_revenue` AS
+SELECT x.VenueID, x.VenueName, x.revenue_90d, x.bookings_90d, x.rn
+FROM (
+  SELECT v.VenueID,
+         v.VenueName,
+         ROUND(COALESCE(SUM(CASE 
+             WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
+              AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+              AND ps.StatusName = 'ชำระเงินสำเร็จ'
+           THEN b.NetPrice ELSE 0 END),0),2) AS revenue_90d,
+         COALESCE(SUM(CASE 
+             WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
+              AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+              AND ps.StatusName = 'ชำระเงินสำเร็จ'
+           THEN 1 ELSE 0 END),0) AS bookings_90d,
+         ROW_NUMBER() OVER (ORDER BY 
+           SUM(CASE 
+             WHEN b.StartTime >= CURDATE() - INTERVAL 90 DAY
+              AND bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+              AND ps.StatusName = 'ชำระเงินสำเร็จ'
+           THEN b.NetPrice ELSE 0 END) DESC, v.VenueName) AS rn
+  FROM `tbl_venue` v
+  LEFT JOIN `tbl_booking` b ON b.VenueID = v.VenueID
+  LEFT JOIN `tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN `tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+  GROUP BY v.VenueID, v.VenueName
+) AS x
+WHERE x.rn <= 10
+;
+
+DROP VIEW IF EXISTS `vw_venue_utilization_daily`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_venue_utilization_daily` AS
+WITH bookings_daily AS (
+  SELECT b.VenueID,
+         CAST(b.StartTime AS DATE) AS usage_date,
+         ROUND(SUM(CASE 
+           WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
+            AND ps.StatusName = 'ชำระเงินสำเร็จ'
+           THEN b.HoursBooked ELSE 0 END), 2) AS booked_hours
+  FROM `tbl_booking` b
+  LEFT JOIN `tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN `tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+  GROUP BY b.VenueID, CAST(b.StartTime AS DATE)
+)
+SELECT v.VenueName,
+       d.usage_date,
+       COALESCE(d.booked_hours,0) AS booked_hours,
+       24 AS open_hours,
+       ROUND(COALESCE(d.booked_hours,0) / 24 * 100, 2) AS utilization_pct
+FROM bookings_daily d
+JOIN `tbl_venue` v ON v.VenueID = d.VenueID
+;
+
+-- เช็คเร็ว ๆ ว่าพร้อมใช้งาน
+SELECT 'OK tbl_customer', COUNT(*) FROM `tbl_customer` LIMIT 1;
