@@ -1,11 +1,4 @@
--- phpMyAdmin SQL Dump (REWRITTEN, Tbl_* names, fixed views & constraints)
--- Server: MariaDB 10.4+ / MySQL 8+
--- NOTE:
--- - เปลี่ยนชื่อตารางจาก tbl_* -> Tbl_*
--- - คง INSERT เดิมทุกแถว
--- - แก้ Views ให้ใช้สถานะตามชื่อ ไม่อ้างเลข, ใช้ SQL SECURITY INVOKER, และแก้วงเล็บเกิน
--- - เติม PRIMARY KEY/AI ตามที่ขาด และแก้ PromotionID=0 -> 1
-
+-- Rewritten from your dump: Tbl_* + Capital after first underscore, fixed views & constraints
 -- OPTIONAL:
 -- USE cy_arena_db;
 
@@ -15,10 +8,10 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 -- =========================================================
--- 1) TABLES  (renamed to Tbl_*)
+-- 1) TABLES  (renamed to Tbl_* with capital after first _)
 -- =========================================================
 
-CREATE TABLE `Tbl_booking` (
+CREATE TABLE `Tbl_Booking` (
   `BookingID` int(11) NOT NULL,
   `CustomerID` int(11) NOT NULL,
   `VenueID` int(11) NOT NULL,
@@ -38,24 +31,24 @@ CREATE TABLE `Tbl_booking` (
   `Notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_booking` (`BookingID`, `CustomerID`, `VenueID`, `BookingStatusID`, `PaymentStatusID`, `PaymentSlipPath`, `PromotionID`, `EmployeeID`, `BookingDate`, `StartTime`, `EndTime`, `HoursBooked`, `TotalPrice`, `Discount`, `NetPrice`, `PaymentMethod`, `Notes`) VALUES
+INSERT INTO `Tbl_Booking` (`BookingID`, `CustomerID`, `VenueID`, `BookingStatusID`, `PaymentStatusID`, `PaymentSlipPath`, `PromotionID`, `EmployeeID`, `BookingDate`, `StartTime`, `EndTime`, `HoursBooked`, `TotalPrice`, `Discount`, `NetPrice`, `PaymentMethod`, `Notes`) VALUES
 (91, 17, 19, 3, 1, NULL, NULL, NULL, '2025-10-31 03:46:10', '2025-11-09 07:00:00', '2025-11-09 08:00:00', 1.00, 250.00, 0.00, 250.00, NULL, NULL),
 (92, 17, 8, 5, 2, 'uploads/payment_slips/slip_92_1761857880.jpg', NULL, 1, '2025-10-31 03:57:21', '2025-10-31 09:00:00', '2025-10-31 12:00:00', 3.00, 600.00, 0.00, 600.00, NULL, NULL),
 (93, 17, 18, 5, 2, NULL, NULL, 1, '2025-10-31 03:59:19', '2025-10-31 09:00:00', '2025-10-31 14:00:00', 3.50, 1400.00, 0.00, 1400.00, NULL, NULL);
 
-CREATE TABLE `Tbl_booking_status` (
+CREATE TABLE `Tbl_Booking_status` (
   `BookingStatusID` int(11) NOT NULL,
   `StatusName` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_booking_status` (`BookingStatusID`, `StatusName`) VALUES
+INSERT INTO `Tbl_Booking_status` (`BookingStatusID`, `StatusName`) VALUES
 (4, 'ยกเลิกโดยระบบ'),
 (3, 'ยกเลิกโดยลูกค้า'),
 (2, 'ยืนยันแล้ว'),
 (1, 'รอยืนยัน'),
 (5, 'เข้าใช้บริการแล้ว');
 
-CREATE TABLE `Tbl_customer` (
+CREATE TABLE `Tbl_Customer` (
   `CustomerID` int(11) NOT NULL,
   `FirstName` varchar(255) NOT NULL,
   `LastName` varchar(255) NOT NULL,
@@ -68,7 +61,7 @@ CREATE TABLE `Tbl_customer` (
   `DateCreated` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_customer` (`CustomerID`, `FirstName`, `LastName`, `Email`, `Phone`, `AvatarPath`, `Username`, `Password`, `Status`, `DateCreated`) VALUES
+INSERT INTO `Tbl_Customer` (`CustomerID`, `FirstName`, `LastName`, `Email`, `Phone`, `AvatarPath`, `Username`, `Password`, `Status`, `DateCreated`) VALUES
 (1, 'สมชาย', 'ใจดี', 'somchai@email.com', '0812345678', 'uploads/avatars/--1-1761763308.jpg', 'somchai', '1234', 'active', '2025-10-21 06:04:34'),
 (2, 'สมหญิง', 'รักไทย', 'somying@email.com', '0898765432', NULL, 'somying', '1234', 'active', '2025-10-21 06:04:34'),
 (3, 'fafafa', 'afafafa', 'fasfafaf@hfjgfs', '2421542513', NULL, 'kannaja', '$2y$10$zmzZpjXmduqOBuzWsavEpeEi97r/6niglbMFXekk4ldSsKQzbDdYW', 'active', '2025-10-21 06:27:15'),
@@ -79,7 +72,7 @@ INSERT INTO `Tbl_customer` (`CustomerID`, `FirstName`, `LastName`, `Email`, `Pho
 (10, 'guide', 'handsome', 'kantaphoom05@gmail.com', '0941682322', NULL, 'Guide', '$2y$10$Ivhau/CxpNsyLeLWTEu6SOdIMOcNrhOMGHpzYlVT.DsFDCK/syOxu', 'active', '2025-10-30 18:14:27'),
 (17, 'guide', 'lnw', 'kantaphoom@gmail.com', '0651088252', 'uploads/avatars/asdsadad-sdasdasdada-17-1761849369.jpg', 'guide2', '$2y$10$Yo2P0kLIMQDzLlkxkD.zHOWJe.ty/Ng.mbUK8lpbrkFA4Y9C7SEr6', 'active', '2025-10-30 18:16:45');
 
-CREATE TABLE `Tbl_employee` (
+CREATE TABLE `Tbl_Employee` (
   `EmployeeID` int(11) NOT NULL,
   `FirstName` varchar(255) NOT NULL,
   `Phone` varchar(20) NOT NULL,
@@ -88,21 +81,21 @@ CREATE TABLE `Tbl_employee` (
   `Password` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_employee` (`EmployeeID`, `FirstName`, `Phone`, `RoleID`, `Username`, `Password`) VALUES
+INSERT INTO `Tbl_Employee` (`EmployeeID`, `FirstName`, `Phone`, `RoleID`, `Username`, `Password`) VALUES
 (1, 'ผู้ดูแล', '0999999999', 1, 'admin', 'admin1234');
 
-CREATE TABLE `Tbl_payment_status` (
+CREATE TABLE `Tbl_Payment_status` (
   `PaymentStatusID` int(11) NOT NULL,
   `StatusName` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_payment_status` (`PaymentStatusID`, `StatusName`) VALUES
+INSERT INTO `Tbl_Payment_status` (`PaymentStatusID`, `StatusName`) VALUES
 (4, 'คืนเงินแล้ว'),
 (2, 'ชำระเงินสำเร็จ'),
 (3, 'รอคืนเงิน'),
 (1, 'รอชำระเงิน');
 
-CREATE TABLE `Tbl_promotion` (
+CREATE TABLE `Tbl_Promotion` (
   `PromotionID` int(11) NOT NULL,
   `PromoCode` varchar(50) NOT NULL,
   `PromoName` varchar(255) NOT NULL,
@@ -114,10 +107,10 @@ CREATE TABLE `Tbl_promotion` (
   `Conditions` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_promotion` (`PromotionID`, `PromoCode`, `PromoName`, `Description`, `DiscountType`, `DiscountValue`, `StartDate`, `EndDate`, `Conditions`) VALUES
+INSERT INTO `Tbl_Promotion` (`PromotionID`, `PromoCode`, `PromoName`, `Description`, `DiscountType`, `DiscountValue`, `StartDate`, `EndDate`, `Conditions`) VALUES
 (0, 'kan', 'kan', 'kan', 'fixed', 100.00, '2025-10-30 05:22:00', '2025-11-14 05:22:00', NULL);
 
-CREATE TABLE `Tbl_review` (
+CREATE TABLE `Tbl_Review` (
   `ReviewID` int(11) NOT NULL,
   `CustomerID` int(11) NOT NULL,
   `VenueID` int(11) NOT NULL,
@@ -128,20 +121,20 @@ CREATE TABLE `Tbl_review` (
   `CreatedAt` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_review` (`ReviewID`, `CustomerID`, `VenueID`, `BookingID`, `Rating`, `Comment`, `ReviewDate`, `CreatedAt`) VALUES
+INSERT INTO `Tbl_Review` (`ReviewID`, `CustomerID`, `VenueID`, `BookingID`, `Rating`, `Comment`, `ReviewDate`, `CreatedAt`) VALUES
 (3, 17, 8, 92, 4, 'ดีมากครับ', '2025-10-30 20:58:41', '2025-10-31 03:58:41'),
 (4, 17, 18, 93, 3, 'กกกกกก', '2025-10-30 21:22:22', '2025-10-31 04:22:22');
 
-CREATE TABLE `Tbl_role` (
+CREATE TABLE `Tbl_Role` (
   `RoleID` int(11) NOT NULL,
   `RoleName` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_role` (`RoleID`, `RoleName`) VALUES
+INSERT INTO `Tbl_Role` (`RoleID`, `RoleName`) VALUES
 (1, 'Admin'),
 (2, 'Staff');
 
-CREATE TABLE `Tbl_venue` (
+CREATE TABLE `Tbl_Venue` (
   `VenueID` int(10) UNSIGNED NOT NULL,
   `VenueName` varchar(255) NOT NULL,
   `VenueTypeID` int(11) NOT NULL,
@@ -154,7 +147,7 @@ CREATE TABLE `Tbl_venue` (
   `ImageURL` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_venue` (`VenueID`, `VenueName`, `VenueTypeID`, `Description`, `Address`, `PricePerHour`, `TimeOpen`, `TimeClose`, `Status`, `ImageURL`) VALUES
+INSERT INTO `Tbl_Venue` (`VenueID`, `VenueName`, `VenueTypeID`, `Description`, `Address`, `PricePerHour`, `TimeOpen`, `TimeClose`, `Status`, `ImageURL`) VALUES
 (1, 'สนามแบดมินตัน Green Court', 1, 'สนามแบดมินตันพื้นไม้ 4 สนาม พร้อมไฟส่องสว่าง', 'ถนนสุขภาพดี เขตเมือง', 150.00, '08:00:00', '22:00:00', 'available', 'images/badminton.jpg'),
 (2, 'สนามเบสบอล SmartBase', 2, 'สนามเบสบอลมาตรฐานพร้อมอัฒจันทร์รองรับผู้ชม', 'ซอยนักกีฬากลาง 5', 400.00, '08:00:00', '21:00:00', 'available', 'images/baseball.jpg'),
 (3, 'สนามเทนนิส Grand Sport', 3, 'พื้นสนามอะคริลิคมาตรฐาน ITF', 'ถนนนักกีฬา แขวงสนามกีฬา', 300.00, '07:00:00', '20:00:00', 'available', 'images/tennis.jpg'),
@@ -192,12 +185,12 @@ INSERT INTO `Tbl_venue` (`VenueID`, `VenueName`, `VenueTypeID`, `Description`, `
 (36, 'สนามฮอกกี้พื้นสนาม เมืองใหม่สปอร์ต', 4, 'พื้นสนามมาตรฐาน FIH พื้นยางสังเคราะห์กันลื่น มีไฟส่องสว่างรอบสนาม เหมาะสำหรับซ้อมและแข่งขัน', 'ถนนสุขสวัสดิ์ ซอยกีฬา 9 เขตเมืองใหม่', 350.00, '08:00:00', '20:00:00', 'available', 'images/hockey2.jpg'),
 (37, 'สนามฮอกกี้พื้นสนาม ศรีนครอารีน่า', 4, 'เลย์เอาต์ขนาดมาตรฐาน มีกรอบประตูและเส้นสนามครบ พร้อมห้องแต่งตัวและอุปกรณ์ให้ยืม', 'ถนนศรีนคร ซอย 7 เขตตะวันออก', 350.00, '08:00:00', '20:00:00', 'available', 'images/hockey3.jpg');
 
-CREATE TABLE `Tbl_venue_type` (
+CREATE TABLE `Tbl_Venue_type` (
   `VenueTypeID` int(11) NOT NULL,
   `TypeName` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-INSERT INTO `Tbl_venue_type` (`VenueTypeID`, `TypeName`) VALUES
+INSERT INTO `Tbl_Venue_type` (`VenueTypeID`, `TypeName`) VALUES
 (1, 'แบดมินตัน'),
 (2, 'เบสบอล'),
 (3, 'เทนนิส'),
@@ -217,44 +210,46 @@ INSERT INTO `Tbl_venue_type` (`VenueTypeID`, `TypeName`) VALUES
 -- =========================================================
 
 -- Primary Keys
-ALTER TABLE `Tbl_booking`        ADD PRIMARY KEY (`BookingID`);
-ALTER TABLE `Tbl_customer`       ADD PRIMARY KEY (`CustomerID`);
-ALTER TABLE `Tbl_review`         ADD PRIMARY KEY (`ReviewID`);
-ALTER TABLE `Tbl_venue`          ADD PRIMARY KEY (`VenueID`);
-ALTER TABLE `Tbl_venue_type`     ADD PRIMARY KEY (`VenueTypeID`);
-ALTER TABLE `Tbl_booking_status` ADD PRIMARY KEY (`BookingStatusID`);
-ALTER TABLE `Tbl_payment_status` ADD PRIMARY KEY (`PaymentStatusID`);
-ALTER TABLE `Tbl_role`           ADD PRIMARY KEY (`RoleID`);
-ALTER TABLE `Tbl_employee`       ADD PRIMARY KEY (`EmployeeID`);
-ALTER TABLE `Tbl_promotion`      ADD PRIMARY KEY (`PromotionID`);
+ALTER TABLE `Tbl_Booking`        ADD PRIMARY KEY (`BookingID`);
+ALTER TABLE `Tbl_Customer`       ADD PRIMARY KEY (`CustomerID`);
+ALTER TABLE `Tbl_Review`         ADD PRIMARY KEY (`ReviewID`);
+ALTER TABLE `Tbl_Venue`          ADD PRIMARY KEY (`VenueID`);
+ALTER TABLE `Tbl_Venue_type`     ADD PRIMARY KEY (`VenueTypeID`);
+ALTER TABLE `Tbl_Booking_status` ADD PRIMARY KEY (`BookingStatusID`);
+ALTER TABLE `Tbl_Payment_status` ADD PRIMARY KEY (`PaymentStatusID`);
+ALTER TABLE `Tbl_Role`           ADD PRIMARY KEY (`RoleID`);
+ALTER TABLE `Tbl_Employee`       ADD PRIMARY KEY (`EmployeeID`);
+ALTER TABLE `Tbl_Promotion`      ADD PRIMARY KEY (`PromotionID`);
 
--- AUTO_INCREMENT (ที่จำเป็น)
-ALTER TABLE `Tbl_booking`     MODIFY `BookingID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=94;
-ALTER TABLE `Tbl_customer`    MODIFY `CustomerID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
-ALTER TABLE `Tbl_review`      MODIFY `ReviewID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-ALTER TABLE `Tbl_venue`       MODIFY `VenueID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
-ALTER TABLE `Tbl_venue_type`  MODIFY `VenueTypeID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
-ALTER TABLE `Tbl_employee`    MODIFY `EmployeeID` int(11) NOT NULL AUTO_INCREMENT;
-
--- แก้ PromotionID ตัวอย่างจาก 0 -> 1 ก่อนเปิด AUTO_INCREMENT
-UPDATE `Tbl_promotion` SET `PromotionID` = 1 WHERE `PromotionID` = 0;
-ALTER TABLE `Tbl_promotion`   MODIFY `PromotionID` int(11) NOT NULL AUTO_INCREMENT;
-
--- ช่วยเร่งความเร็ว Query ที่ใช้บ่อย
-ALTER TABLE `Tbl_booking`
+-- Helpful indexes
+ALTER TABLE `Tbl_Booking`
   ADD INDEX `idx_booking_starttime` (`StartTime`),
   ADD INDEX `idx_booking_status`   (`BookingStatusID`),
   ADD INDEX `idx_booking_payment`  (`PaymentStatusID`),
   ADD INDEX `idx_booking_venue`    (`VenueID`);
-
-ALTER TABLE `Tbl_venue`
+ALTER TABLE `Tbl_Venue`
   ADD INDEX `idx_venue_type` (`VenueTypeID`);
 
+-- Fix sample PromotionID (0 -> 1) before enabling AUTO_INCREMENT
+UPDATE `Tbl_Promotion` SET `PromotionID` = 1 WHERE `PromotionID` = 0;
+
+-- AUTO_INCREMENT
+ALTER TABLE `Tbl_Booking`        MODIFY `BookingID` int(11) NOT NULL AUTO_INCREMENT,              AUTO_INCREMENT=94;
+ALTER TABLE `Tbl_Customer`       MODIFY `CustomerID` int(11) NOT NULL AUTO_INCREMENT,             AUTO_INCREMENT=18;
+ALTER TABLE `Tbl_Review`         MODIFY `ReviewID` int(11) NOT NULL AUTO_INCREMENT,               AUTO_INCREMENT=5;
+ALTER TABLE `Tbl_Venue`          MODIFY `VenueID` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,       AUTO_INCREMENT=41;
+ALTER TABLE `Tbl_Venue_type`     MODIFY `VenueTypeID` int(11) NOT NULL AUTO_INCREMENT,            AUTO_INCREMENT=14;
+ALTER TABLE `Tbl_Employee`       MODIFY `EmployeeID` int(11) NOT NULL AUTO_INCREMENT,             AUTO_INCREMENT=2;
+ALTER TABLE `Tbl_Promotion`      MODIFY `PromotionID` int(11) NOT NULL AUTO_INCREMENT,            AUTO_INCREMENT=2;
+ALTER TABLE `Tbl_Booking_status` MODIFY `BookingStatusID` int(11) NOT NULL AUTO_INCREMENT,        AUTO_INCREMENT=6;
+ALTER TABLE `Tbl_Payment_status` MODIFY `PaymentStatusID` int(11) NOT NULL AUTO_INCREMENT,        AUTO_INCREMENT=5;
+ALTER TABLE `Tbl_Role`           MODIFY `RoleID` int(11) NOT NULL AUTO_INCREMENT,                 AUTO_INCREMENT=3;
+
 -- =========================================================
--- 3) VIEWS (drop stand-ins & recreate fixed)
+-- 3) VIEWS (drop stand-ins & recreate with correct logic)
 -- =========================================================
 
--- ลบ stand-in tables ถ้ามีจาก dump เดิม
+-- Drop stand-ins (if any)
 DROP TABLE IF EXISTS `vw_booking_funnel`;
 DROP TABLE IF EXISTS `vw_customer_ltv`;
 DROP TABLE IF EXISTS `vw_employee_performance`;
@@ -266,7 +261,7 @@ DROP TABLE IF EXISTS `vw_review_scores_by_venue`;
 DROP TABLE IF EXISTS `vw_top10_venues_by_revenue`;
 DROP TABLE IF EXISTS `vw_venue_utilization_daily`;
 
--- ลบวิวเก่าแล้วสร้างใหม่
+-- Drop old views
 DROP VIEW IF EXISTS `vw_booking_funnel`;
 DROP VIEW IF EXISTS `vw_customer_ltv`;
 DROP VIEW IF EXISTS `vw_employee_performance`;
@@ -278,20 +273,20 @@ DROP VIEW IF EXISTS `vw_review_scores_by_venue`;
 DROP VIEW IF EXISTS `vw_top10_venues_by_revenue`;
 DROP VIEW IF EXISTS `vw_venue_utilization_daily`;
 
--- Booking funnel (สรุปตามสถานะ)
+-- Booking funnel
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_booking_funnel` AS
 SELECT
   bs.StatusName AS booking_status,
   ps.StatusName AS payment_status,
   COUNT(*)      AS cnt
-FROM `Tbl_booking` b
-JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+FROM `Tbl_Booking` b
+JOIN `Tbl_Booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+JOIN `Tbl_Payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY bs.StatusName, ps.StatusName
 ORDER BY bs.StatusName, ps.StatusName;
 
--- Customer LTV (นับเฉพาะที่ยืนยัน/เข้าใช้ + ชำระสำเร็จ)
+-- Customer LTV (count/agg only for confirmed/served + paid_success)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_customer_ltv` AS
 SELECT
@@ -307,32 +302,33 @@ SELECT
   MIN(b.StartTime) AS first_booking_at,
   MAX(b.StartTime) AS last_booking_at,
   TO_DAYS(CURDATE()) - TO_DAYS(MAX(b.StartTime)) AS recency_days
-FROM `Tbl_customer` c
-LEFT JOIN `Tbl_booking` b ON b.CustomerID = c.CustomerID
-LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+FROM `Tbl_Customer` c
+LEFT JOIN `Tbl_Booking` b            ON b.CustomerID = c.CustomerID
+LEFT JOIN `Tbl_Booking_status` bs    ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN `Tbl_Payment_status` ps    ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY c.CustomerID, CONCAT(c.FirstName,' ',c.LastName)
 ORDER BY total_revenue DESC;
 
--- พนักงาน (จำนวนงาน + รายได้ที่ “ชำระสำเร็จ”)
+-- Employee performance (only confirmed/served + paid_success)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_employee_performance` AS
 SELECT
   e.EmployeeID,
   e.FirstName AS employee_name,
   COUNT(b.BookingID) AS handled_bookings,
-  SUM(CASE WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
-           THEN b.TotalPrice ELSE 0 END) AS revenue_approved,
+  SUM(CASE
+        WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว') AND ps.StatusName='ชำระเงินสำเร็จ'
+        THEN b.TotalPrice ELSE 0 END) AS revenue_approved,
   MIN(b.StartTime) AS first_booking_at,
   MAX(b.StartTime) AS last_booking_at
-FROM `Tbl_employee` e
-LEFT JOIN `Tbl_booking` b ON b.EmployeeID = e.EmployeeID
-LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+FROM `Tbl_Employee` e
+LEFT JOIN `Tbl_Booking` b          ON b.EmployeeID = e.EmployeeID
+LEFT JOIN `Tbl_Booking_status` bs  ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN `Tbl_Payment_status` ps  ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY e.EmployeeID, e.FirstName
 ORDER BY revenue_approved DESC;
 
--- อัตรายกเลิกรายเดือน
+-- Monthly cancellation rate
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_monthly_cancellation_rate` AS
 SELECT
@@ -340,12 +336,12 @@ SELECT
   COUNT(*) AS total_bookings,
   SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) AS cancelled,
   ROUND(100.0 * SUM(CASE WHEN bs.StatusName IN ('ยกเลิกโดยลูกค้า','ยกเลิกโดยระบบ') THEN 1 ELSE 0 END) / COUNT(*), 2) AS cancel_rate_pct
-FROM `Tbl_booking` b
-JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+FROM `Tbl_Booking` b
+JOIN `Tbl_Booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
 GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
 ORDER BY ym;
 
--- รายได้รายเดือน (ยืนยัน/เข้าใช้ + ชำระสำเร็จ)
+-- Monthly revenue (confirmed/served + paid_success)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_monthly_revenue` AS
 SELECT
@@ -353,15 +349,15 @@ SELECT
   SUM(b.TotalPrice) AS revenue,
   COUNT(*) AS bookings,
   AVG(b.TotalPrice) AS avg_order_value
-FROM `Tbl_booking` b
-JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+FROM `Tbl_Booking` b
+JOIN `Tbl_Booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+JOIN `Tbl_Payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
 WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
   AND ps.StatusName = 'ชำระเงินสำเร็จ'
 GROUP BY DATE_FORMAT(b.StartTime,'%Y-%m')
 ORDER BY ym;
 
--- ชั่วโมงพีคต่อประเภทสนาม (ห่อเป็น subquery ก่อนคำนวณ ROW_NUMBER)
+-- Peak hours by type (wrap subquery before ROW_NUMBER + include paid_success)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_peak_hours_by_type` AS
 SELECT
@@ -374,18 +370,18 @@ FROM (
     vt.TypeName,
     HOUR(b.StartTime) AS hour_of_day,
     COUNT(*) AS bookings
-  FROM `Tbl_booking` b
-  JOIN `Tbl_venue` v  ON v.VenueID = b.VenueID
-  JOIN `Tbl_venue_type` vt ON vt.VenueTypeID = v.VenueTypeID
-  JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-  JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+  FROM `Tbl_Booking` b
+  JOIN `Tbl_Venue` v           ON v.VenueID = b.VenueID
+  JOIN `Tbl_Venue_type` vt     ON vt.VenueTypeID = v.VenueTypeID
+  JOIN `Tbl_Booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  JOIN `Tbl_Payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
   WHERE bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
     AND ps.StatusName = 'ชำระเงินสำเร็จ'
   GROUP BY vt.TypeName, HOUR(b.StartTime)
 ) AS t
 ORDER BY t.TypeName, t.bookings DESC, t.hour_of_day;
 
--- ประสิทธิภาพโปรโมชัน
+-- Promotion performance (confirmed/served + paid_success)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_promotion_performance` AS
 SELECT
@@ -397,14 +393,14 @@ SELECT
     THEN b.NetPrice ELSE 0 END),0) AS revenue_from_promo,
   MIN(b.StartTime) AS first_used_at,
   MAX(b.StartTime) AS last_used_at
-FROM `Tbl_promotion` p
-LEFT JOIN `Tbl_booking` b ON b.PromotionID = p.PromotionID
-LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+FROM `Tbl_Promotion` p
+LEFT JOIN `Tbl_Booking` b          ON b.PromotionID = p.PromotionID
+LEFT JOIN `Tbl_Booking_status` bs  ON bs.BookingStatusID = b.BookingStatusID
+LEFT JOIN `Tbl_Payment_status` ps  ON ps.PaymentStatusID = b.PaymentStatusID
 GROUP BY p.PromotionID, p.PromoCode
 ORDER BY uses_count DESC, revenue_from_promo DESC;
 
--- คะแนนรีวิวต่อสนาม
+-- Review scores by venue
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_review_scores_by_venue` AS
 SELECT
@@ -414,12 +410,12 @@ SELECT
   AVG(r.Rating) AS avg_rating,
   MIN(r.CreatedAt) AS first_review_at,
   MAX(r.CreatedAt) AS last_review_at
-FROM `Tbl_venue` v
-LEFT JOIN `Tbl_review` r ON r.VenueID = v.VenueID
+FROM `Tbl_Venue` v
+LEFT JOIN `Tbl_Review` r ON r.VenueID = v.VenueID
 GROUP BY v.VenueID, v.VenueName
 ORDER BY avg_rating DESC, reviews_count DESC;
 
--- TOP 10 รายได้สูงสุดใน 90 วัน (ยืนยัน/เข้าใช้ + ชำระสำเร็จ)
+-- Top 10 venues by revenue (last 90d, confirmed/served + paid_success)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_top10_venues_by_revenue` AS
 SELECT * FROM (
@@ -443,15 +439,15 @@ SELECT * FROM (
            AND ps.StatusName = 'ชำระเงินสำเร็จ'
           THEN b.NetPrice ELSE 0 END) DESC,
         v.VenueName) AS rn
-  FROM `Tbl_venue` v
-  LEFT JOIN `Tbl_booking` b ON b.VenueID = v.VenueID
-  LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-  LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+  FROM `Tbl_Venue` v
+  LEFT JOIN `Tbl_Booking` b          ON b.VenueID = v.VenueID
+  LEFT JOIN `Tbl_Booking_status` bs  ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN `Tbl_Payment_status` ps  ON ps.PaymentStatusID = b.PaymentStatusID
   GROUP BY v.VenueID, v.VenueName
 ) x
 WHERE x.rn <= 10;
 
--- Utilization รายวันต่อสนาม (แก้วงเล็บเกิน และใช้สถานะตามชื่อ)
+-- Venue utilization daily (fixed extra parenthesis + correct filters)
 CREATE OR REPLACE ALGORITHM=UNDEFINED SQL SECURITY INVOKER
 VIEW `vw_venue_utilization_daily` AS
 WITH bookings_daily AS (
@@ -462,19 +458,19 @@ WITH bookings_daily AS (
       WHEN bs.StatusName IN ('ยืนยันแล้ว','เข้าใช้บริการแล้ว')
        AND ps.StatusName = 'ชำระเงินสำเร็จ'
       THEN b.HoursBooked ELSE 0 END), 2) AS booked_hours
-  FROM `Tbl_booking` b
-  LEFT JOIN `Tbl_booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
-  LEFT JOIN `Tbl_payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
+  FROM `Tbl_Booking` b
+  LEFT JOIN `Tbl_Booking_status` bs ON bs.BookingStatusID = b.BookingStatusID
+  LEFT JOIN `Tbl_Payment_status` ps ON ps.PaymentStatusID = b.PaymentStatusID
   GROUP BY b.VenueID, CAST(b.StartTime AS DATE)
 )
 SELECT
   v.VenueName,
   d.usage_date,
-  COALESCE(d.booked_hours, 0) AS booked_hours,
+  COALESCE(d.booked_hours,0) AS booked_hours,
   24 AS open_hours,
   ROUND(COALESCE(d.booked_hours,0) / 24 * 100, 2) AS utilization_pct
 FROM bookings_daily d
-JOIN `Tbl_venue` v ON v.VenueID = d.VenueID;
+JOIN `Tbl_Venue` v ON v.VenueID = d.VenueID;
 
 COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
