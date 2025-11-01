@@ -1,0 +1,30 @@
+-- === Make DB match the web code (create lowercase tbl_* views) ===
+-- NOTE: ถ้าคุณใช้ฐานอื่น ให้แก้ชื่อฐานด้านล่าง หรือคอมเมนต์บรรทัดนี้ออก
+-- USE `defaultdb`;
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+/*!40101 SET NAMES utf8mb4 */;
+
+-- ลบ view เดิมถ้ามี (เพื่อป้องกันชื่อชน)
+DROP VIEW IF EXISTS `tbl_customer`;
+DROP VIEW IF EXISTS `tbl_employee`;
+DROP VIEW IF EXISTS `tbl_booking`;
+DROP VIEW IF EXISTS `tbl_booking_status`;
+DROP VIEW IF EXISTS `tbl_payment_status`;
+DROP VIEW IF EXISTS `tbl_promotion`;
+DROP VIEW IF EXISTS `tbl_review`;
+DROP VIEW IF EXISTS `tbl_venue`;
+DROP VIEW IF EXISTS `tbl_venue_type`;
+DROP VIEW IF EXISTS `tbl_role`;
+
+-- สร้าง VIEW ให้ชี้ไปตารางตัวใหญ่ (Linux case-sensitive จะแม่นยำ)
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_customer`       AS SELECT * FROM `Tbl_Customer`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_employee`       AS SELECT * FROM `Tbl_Employee`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_booking`        AS SELECT * FROM `Tbl_Booking`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_booking_status` AS SELECT * FROM `Tbl_Booking_status`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_payment_status` AS SELECT * FROM `Tbl_Payment_status`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_promotion`      AS SELECT * FROM `Tbl_Promotion`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_review`         AS SELECT * FROM `Tbl_Review`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_venue`          AS SELECT * FROM `Tbl_Venue`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_venue_type`     AS SELECT * FROM `Tbl_Venue_type`;
+CREATE OR REPLACE ALGORITHM=MERGE SQL SECURITY INVOKER VIEW `tbl_role`           AS SELECT * FROM `Tbl_Role`;
