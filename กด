@@ -1,49 +1,91 @@
 <?php
-//ini_set('session.save_path', '/tmp');
-//session_start();
+// เปิด error แบบโยน Exception (อ่านง่ายเวลา debug)
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// --- 🌐 Aiven & Render MySQL Connection ---
-$host = getenv('DB_HOST');
-$port = getenv('DB_PORT');
-$user = getenv('DB_USER');
-$pass = getenv('DB_PASS');
-$db   = getenv('DB_NAME');
-$ca_content = getenv('DB_CA_CERT');
+function db_connect() {
+    $isCloud = getenv('DB_HOST') && getenv('DB_USER') && getenv('DB_NAME');
 
-// 🔒 เขียนไฟล์ CA ชั่วคราว
-if (!$ca_content) {
-    die("❌ Missing DB_CA_CERT environment variable");
+    if ($isCloud) {
+        // ====== Cloud (Aiven/Render) with SSL ======
+        $host = getenv('DB_HOST');
+        $port = (int)(getenv('DB_PORT') ?: 3306);
+        $user = getenv('DB_USER');
+        $pass = getenv('DB_PASS');
+        $db   = getenv('DB_NAME');
+        $ca_content = getenv('DB_CA_CERT');
+
+        if (!$ca_content) {
+            throw new RuntimeException('Missing DB_CA_CERT environment variable');
+        }
+
+        // บางระบบส่ง CA มาแบบ escape \n หรือ base64 — แก้ให้อ่านได้เสมอ
+        if (strpos($ca_content, 'BEGIN CERTIFICATE') === false) {
+            // อาจเป็น base64
+            $decoded = base64_decode($ca_content, true);
+            if ($decoded !== false) {
+                $ca_content = $decoded;
+            }
+        }
+        // แปลง \n ที่เป็น string ให้เป็น newline จริง
+        $ca_content = str_replace(["\\n", "\r\n"], ["\n", "\n"], $ca_content);
+
+        // เขียนไฟล์ CA ชั่วคราว + ลบอัตโนมัติเมื่อสคริปต์จบ
+        $tmp_ca = tempnam(sys_get_temp_dir(), 'ca_');
+        file_put_contents($tmp_ca, $ca_content);
+        register_shutdown_function(function() use ($tmp_ca) {
+            if (is_file($tmp_ca)) @unlink($tmp_ca);
+        });
+
+        $conn = mysqli_init();
+        if (!$conn) throw new RuntimeException('mysqli_init failed');
+
+        // แนะนำให้ verify server cert (ปลอดภัยกว่า)
+        if (defined('MYSQLI_OPT_SSL_VERIFY_SERVER_CERT')) {
+            mysqli_options($conn, MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, true);
+        }
+
+        mysqli_ssl_set($conn, null, null, $tmp_ca, null, null);
+
+        if (!@mysqli_real_connect(
+            $conn,
+            $host,
+            $user,
+            $pass,
+            $db,
+            $port,
+            null,
+            MYSQLI_CLIENT_SSL
+        )) {
+            throw new RuntimeException('Cloud DB connect failed: '.mysqli_connect_error());
+        }
+    } else {
+        // ====== Local (XAMPP) ======
+        $host = '127.0.0.1'; // หรือ 'localhost'
+        $user = 'root';
+        $pass = '';
+        $db   = 'cy_arena_db';
+        $port = 3306;        // ถ้า MySQL ใช้พอร์ต 3307 ให้แก้เป็น 3307
+
+        $conn = mysqli_init();
+        if (!$conn) throw new RuntimeException('mysqli_init failed');
+
+        if (!@mysqli_real_connect($conn, $host, $user, $pass, $db, $port)) {
+            throw new RuntimeException('Local DB connect failed: '.mysqli_connect_error());
+        }
+    }
+
+    // Charset ให้รองรับภาษาไทย
+    mysqli_set_charset($conn, 'utf8mb4');
+
+    return $conn;
 }
 
-$tmp_ca = tempnam(sys_get_temp_dir(), 'ca_');
-file_put_contents($tmp_ca, $ca_content);
-
-$conn = mysqli_init();
-if (!$conn) {
-    die("❌ Error: mysqli_init failed");
+try {
+    $conn = db_connect();
+    // *** ห้าม echo อะไรในไฟล์เชื่อมต่อ เพื่อไม่ให้รบกวน session/header ***
+} catch (Throwable $e) {
+    // แนะนำให้เขียน log แล้วตายเงียบ ๆ ในโปรดักชัน
+    // error_log($e->getMessage());
+    http_response_code(500);
+    exit; // หรือ die();
 }
-
-// ✅ ตั้งค่า SSL โดยใช้ CA จาก environment
-mysqli_ssl_set($conn, NULL, NULL, $tmp_ca, NULL, NULL);
-
-if (
-    !mysqli_real_connect(
-        $conn,
-        $host,
-        $user,
-        $pass,
-        $db,
-        (int)$port,
-        NULL,
-        MYSQLI_CLIENT_SSL
-    )
-) {
-    die("❌ Connection Failed: " . mysqli_connect_error());
-}
-
-// ‼️ [แก้ไขแล้ว] ‼️
-// ลบบรรทัด 'echo "✅ Connected..."' ทิ้ง
-// เพราะมันทำให้เกิด Error "headers already sent"
-// และขัดขวางการ Login ครับ
-
-?>
