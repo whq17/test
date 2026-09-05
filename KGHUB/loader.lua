@@ -1,0 +1,1 @@
+local u="https://raw.githubusercontent.com/whq17/test/main/KGHUB/latest.lua";local e=(getgenv and getgenv())or _G;e.__KGHUB_REMOTE_URL=u;loadstring(game:HttpGet(u))()
