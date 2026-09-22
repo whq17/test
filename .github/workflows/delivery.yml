@@ -1,0 +1,14 @@
+﻿name: Temporary PDF Delivery
+on:
+  push:
+    branches: [chatgpt-delivery-temp]
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translated-pdf
+          path: Indonesia_Economic_Crisis_1997-1998_TH.pdf
+          retention-days: 1
